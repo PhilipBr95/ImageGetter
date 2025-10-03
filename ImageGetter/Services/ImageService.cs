@@ -1,0 +1,99 @@
+﻿using ImageGetter.Models;
+using Microsoft.Extensions.Logging;
+using Renci.SshNet;
+using SixLabors.ImageSharp;
+using System.Globalization;
+using System.Web;
+
+namespace ImageGetter.Services
+{
+    internal class ImageService : IImageService
+    {
+        private Settings _settings;
+        private List<Media> _media;
+        private readonly ILogger<ImageService> _logger;
+
+        public ImageService(Settings settings, ILogger<ImageService> logger)
+        {
+            _settings = settings;
+            _logger = logger;
+        }
+
+        public IEnumerable<Media> GetImages()
+        {
+            using SftpClient client = new SftpClient(new PasswordConnectionInfo(_settings.Host, _settings.Username, _settings.Password));
+            client.Connect();
+
+            _media = new List<Media>();
+
+            foreach (var path in _settings.Paths)
+            {
+                if (client.Exists(path))
+                {
+                    _media.AddRange(client.ListDirectory(path)
+                                         .Where(i => !i.IsDirectory && i.FullName.EndsWith("jpg"))
+                                         .Select(s => new Media { Filename = s.FullName, Id = HttpUtility.UrlEncode(s.FullName) }));
+                }
+            }
+
+            client.Disconnect();
+
+            _logger.LogInformation($"Found {_media.Count} images");
+            return _media;
+        }
+
+        public MediaFile? GetImage(string path)
+        {
+            using SftpClient client = new SftpClient(new PasswordConnectionInfo(_settings.Host, _settings.Username, _settings.Password));
+            client.Connect();
+            
+            if (!client.Exists(path))
+            {
+                _logger.LogError($"Failed to find {path}");
+                return null;
+            }
+
+            using var memoryStream = new MemoryStream();
+            client.DownloadFile(path, memoryStream);
+
+            var image = Image.Load(memoryStream.ToArray());
+
+            DateTime createdDate = DateTime.MinValue;
+            var exifProfile = image.Metadata.ExifProfile;
+            if (exifProfile != null)
+            {
+                if (exifProfile.TryGetValue(SixLabors.ImageSharp.Metadata.Profiles.Exif.ExifTag.DateTimeOriginal, out var exifValue))
+                {
+                    var dateString = exifValue?.GetValue() as string;
+                    if (!string.IsNullOrEmpty(dateString))
+                    {
+                        if (DateTime.TryParse(dateString, out DateTime parsedDate))
+                            createdDate = parsedDate;
+                        if (DateTime.TryParseExact(dateString, "yyyy:MM:dd HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out parsedDate))
+                            createdDate = parsedDate;
+                    }
+                }
+            }
+
+            return new MediaFile
+            {
+                Filename = path,
+                Data = memoryStream.ToArray(),
+                Width = image.Width,
+                Height = image.Height,
+                CreatedDate = createdDate
+            };
+        }
+
+        public Media GetRandomImage()
+        {
+            if (_media == null || !_media.Any())
+                GetImages();
+
+            var random = new Random();
+            var index = random.Next(0, _media.Count - 1);
+
+            return _media[index];
+        }
+    }
+}
