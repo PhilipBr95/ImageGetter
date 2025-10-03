@@ -11,9 +11,20 @@ namespace ImageGetter
             // Add services to the container.
 
             builder.Services.AddControllers();
+
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
+            builder.Services.AddLogging(options =>
+            {
+                options.ClearProviders();
+                options.AddSimpleConsole(consoleOptions =>
+                {
+                    consoleOptions.TimestampFormat = "HH:mm:ss ";
+                    consoleOptions.SingleLine = true;
+                });
+                options.AddDebug();
+            });
             builder.Services.AddSingleton<Services.IImageService, Services.ImageService>();
             builder.Services.AddTransient<Settings>(s =>
             {
@@ -42,7 +53,6 @@ namespace ImageGetter
             //app.UseHttpsRedirection();
 
             app.UseAuthorization();
-
 
             app.MapControllers();
 
