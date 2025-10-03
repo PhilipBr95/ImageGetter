@@ -10,6 +10,16 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="certs\aspnetapp.pfx" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="certs\aspnetapp.pfx">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.22.1" />
 	<PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.11" />
