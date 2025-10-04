@@ -19,6 +19,7 @@ namespace ImageGetter.Controllers
         [HttpHead]
         public IActionResult Head()
         {
+            Response.Headers.LastModified = DateTimeOffset.Now.ToString("ddd, d MMM yyyy HH:mm:ss");
             return Ok();
         }
 
