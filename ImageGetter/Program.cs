@@ -15,16 +15,26 @@ namespace ImageGetter
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
+            builder.Services.AddCors(options =>
+            {
+                options.AddPolicy("AllowSpecificOrigins",
+                builder =>
+                {
+                    builder.AllowAnyOrigin()
+                           .AllowAnyHeader()
+                           .WithMethods("GET", "OPTIONS");
+                });
+            });
             builder.Services.AddLogging(options =>
             {
                 options.ClearProviders();
                 options.AddSimpleConsole(consoleOptions =>
                 {
                     consoleOptions.TimestampFormat = "HH:mm:ss ";
-                    consoleOptions.SingleLine = true;
+                        consoleOptions.SingleLine = true;
                 });
                 options.AddDebug();
-            });
+            }); 
             builder.Services.AddSingleton<Services.IImageService, Services.ImageService>();
             builder.Services.AddTransient<Settings>(s =>
             {
@@ -50,6 +60,7 @@ namespace ImageGetter
                 app.UseSwaggerUI();
             }
 
+            app.UseCors("AllowSpecificOrigins");
             //app.UseHttpsRedirection();
 
             app.UseAuthorization();
