@@ -16,6 +16,12 @@ namespace ImageGetter.Controllers
             _logger = logger;
         }
 
+        [HttpHead]
+        public IActionResult Head()
+        {
+            return Ok();
+        }
+
         [HttpGet]
         public IActionResult Index()
         {
