@@ -22,7 +22,7 @@ namespace ImageGetter
                 {
                     builder.AllowAnyOrigin()
                            .AllowAnyHeader()
-                           .WithMethods("GET", "OPTIONS");
+                           .WithMethods("GET", "HEAD", "OPTIONS");
                 });
             });
             builder.Services.AddLogging(options =>
