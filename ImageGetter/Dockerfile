@@ -21,6 +21,8 @@ RUN dotnet build "./ImageGetter.csproj" -c $BUILD_CONFIGURATION -o /app/build
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
 RUN dotnet publish "./ImageGetter.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+RUN mkdir -p /app/publish/certs
+RUN dotnet dev-certs https -ep /app/publish/certs/aspnetapp.pfx
 
 # This stage is used in production or when running from VS in regular mode (Default when not using the Debug configuration)
 FROM base AS final
