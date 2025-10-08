@@ -1,7 +1,9 @@
-﻿using ImageGetter.Models;
+﻿using ImageGetter.Extensions;
+using ImageGetter.Models;
 using Microsoft.Extensions.Logging;
 using Renci.SshNet;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Metadata.Profiles.Exif;
 using System.Globalization;
 using System.Web;
 
@@ -53,12 +55,19 @@ namespace ImageGetter.Services
                 return null;
             }
 
+            _logger.LogInformation($"Downloading {path}");
+
             using var memoryStream = new MemoryStream();
             client.DownloadFile(path, memoryStream);
 
             var image = Image.Load(memoryStream.ToArray());
 
             DateTime createdDate = DateTime.MinValue;
+            string location = "";
+            ushort orientation = 0;
+
+            //image.Metadata.DebugExif();
+
             var exifProfile = image.Metadata.ExifProfile;
             if (exifProfile != null)
             {
@@ -73,6 +82,9 @@ namespace ImageGetter.Services
                             createdDate = parsedDate;
                     }
                 }
+
+                orientation = image.Metadata.GetOrientation() ?? 0;
+                location = image.Metadata.GetLocationStringAsync().GetAwaiter().GetResult() ?? "";
             }
 
             return new MediaFile
@@ -81,7 +93,9 @@ namespace ImageGetter.Services
                 Data = memoryStream.ToArray(),
                 Width = image.Width,
                 Height = image.Height,
-                CreatedDate = createdDate
+                CreatedDate = createdDate,
+                Location = location,
+                Orientation = orientation
             };
         }
 

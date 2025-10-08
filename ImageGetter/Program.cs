@@ -1,4 +1,6 @@
-﻿using ImageGetter.Models;
+﻿using ImageGetter.Extensions;
+using ImageGetter.Models;
+using SixLabors.ImageSharp.Metadata.Profiles.Exif;
 
 namespace ImageGetter
 {
@@ -33,8 +35,8 @@ namespace ImageGetter
                     consoleOptions.TimestampFormat = "HH:mm:ss ";
                         consoleOptions.SingleLine = true;
                 });
-                options.AddDebug();
-            }); 
+                options.AddDebug().SetMinimumLevel(LogLevel.Debug);
+            });            
             builder.Services.AddSingleton<Services.IImageService, Services.ImageService>();
             builder.Services.AddTransient<Settings>(s =>
             {
@@ -51,8 +53,11 @@ namespace ImageGetter
                 return settings;
             });
 
-            var app = builder.Build();
+            var serviceProvider = builder.Services.BuildServiceProvider();
+            ImageMetadataExtensions.Initialize(serviceProvider);
 
+            var app = builder.Build();
+            
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {
