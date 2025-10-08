@@ -1,5 +1,7 @@
 ﻿using Geocoding;
 using Geocoding.Google;
+using ImageGetter.Models;
+using Microsoft.Extensions.Options;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Metadata;
 using SixLabors.ImageSharp.Metadata.Profiles.Exif;
@@ -9,10 +11,12 @@ namespace ImageGetter.Extensions
     public static class ImageMetadataExtensions
     {
         private static ILogger _logger;
+        private static Settings _settings;
 
         public static void Initialize(IServiceProvider serviceProvider)
         {
             _logger = serviceProvider.GetRequiredService<ILoggerFactory>().CreateLogger(nameof(ImageMetadataExtensions));
+            _settings = serviceProvider.GetRequiredService<IOptions<Settings>>().Value;
         }
 
         static async public Task DebugExif(this ImageMetadata metadata)
@@ -41,7 +45,7 @@ namespace ImageGetter.Extensions
             {
                 var location = new Location(latitude.Value, longitude.Value);
 
-                IGeocoder geocoder = new GoogleGeocoder() { ApiKey = "AIzaSyC9o7kV6HjUxcWyugenFYYVrGqNQaZrcKQ" };
+                IGeocoder geocoder = new GoogleGeocoder() { ApiKey = _settings.GoogleApiKey };
                 IEnumerable<Address> addresses = await geocoder.ReverseGeocodeAsync(location);
                 
                 foreach(var address in addresses)

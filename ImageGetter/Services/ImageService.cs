@@ -1,9 +1,8 @@
 ﻿using ImageGetter.Extensions;
 using ImageGetter.Models;
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Renci.SshNet;
 using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Metadata.Profiles.Exif;
 using System.Globalization;
 using System.Web;
 
@@ -15,15 +14,15 @@ namespace ImageGetter.Services
         private List<Media> _media;
         private readonly ILogger<ImageService> _logger;
 
-        public ImageService(Settings settings, ILogger<ImageService> logger)
+        public ImageService(IOptions<Settings> settings, ILogger<ImageService> logger)
         {
-            _settings = settings;
+            _settings = settings.Value;
             _logger = logger;
         }
 
         public IEnumerable<Media> GetImages()
         {
-            using SftpClient client = new SftpClient(new PasswordConnectionInfo(_settings.Host, _settings.Username, _settings.Password));
+            using SftpClient client = new SftpClient(new PasswordConnectionInfo(_settings.Host, _settings.Username, _settings.ImagePassword));
             client.Connect();
 
             _media = new List<Media>();
@@ -46,7 +45,7 @@ namespace ImageGetter.Services
 
         public MediaFile? GetImage(string path)
         {
-            using SftpClient client = new SftpClient(new PasswordConnectionInfo(_settings.Host, _settings.Username, _settings.Password));
+            using SftpClient client = new SftpClient(new PasswordConnectionInfo(_settings.Host, _settings.Username, _settings.ImagePassword));
             client.Connect();
             
             if (!client.Exists(path))

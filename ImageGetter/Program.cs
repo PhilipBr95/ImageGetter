@@ -38,19 +38,15 @@ namespace ImageGetter
                 options.AddDebug().SetMinimumLevel(LogLevel.Debug);
             });            
             builder.Services.AddSingleton<Services.IImageService, Services.ImageService>();
-            builder.Services.AddTransient<Settings>(s =>
+            builder.Services.Configure<Settings>(settings =>
             {
-                var settings = new Settings
-                {
-                    Password = Environment.GetEnvironmentVariable("IMAGEGETTER_PASSWORD")
-                };
-
-                if (string.IsNullOrEmpty(settings.Password))
-                {
+                settings.ImagePassword = Environment.GetEnvironmentVariable("IMAGEGETTER_PASSWORD");                
+                if (string.IsNullOrEmpty(settings.ImagePassword))
                     throw new Exception("IMAGEGETTER_PASSWORD environment variable not set");
-                }
 
-                return settings;
+                settings.GoogleApiKey = Environment.GetEnvironmentVariable("GOOGLE_APIKEY");
+                if (string.IsNullOrEmpty(settings.GoogleApiKey))
+                    throw new Exception("GOOGLE_APIKEY environment variable not set");
             });
 
             var serviceProvider = builder.Services.BuildServiceProvider();
