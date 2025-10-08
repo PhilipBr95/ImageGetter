@@ -11,10 +11,14 @@
 
   <ItemGroup>
     <None Remove="certs\aspnetapp.pfx" />
+    <None Remove="Fonts\Roboto-Regular.ttf" />
   </ItemGroup>
 
   <ItemGroup>
     <Content Include="certs\aspnetapp.pfx">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Fonts\Roboto-Regular.ttf">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

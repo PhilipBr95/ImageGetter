@@ -56,10 +56,10 @@ namespace ImageGetter.Controllers
             AddText(file.ParentFolderName, image, 0, landscape);
 
             var createdDate = file.CreatedDate.ToString("dd/MMM/yyyy");
-            AddText(createdDate, image, 100, landscape);
+            AddText(createdDate, image, 120, landscape);
 
             var location = file.Location;
-            AddText(location, image, 200, landscape);
+            AddText(location, image, 240, landscape);
 
             MemoryStream ms = new();
             image.Save(ms, new JpegEncoder());
@@ -69,8 +69,7 @@ namespace ImageGetter.Controllers
         private void AddText(string text, Image image, int yOffset, bool landscape)
         {
             const float TEXTPADDING = 18f;
-            const string TEXTFONT = "Calibri";
-
+            
             float textFontSize = 100f;
 
             if (landscape)
@@ -79,8 +78,11 @@ namespace ImageGetter.Controllers
                 yOffset += 30;
             }
 
-            if (!SystemFonts.TryGet(TEXTFONT, out FontFamily fontFamily))
-                throw new Exception($"Couldn't find font {TEXTFONT}");
+            FontCollection fontCollection = new();            
+            fontCollection.Add("Fonts/Roboto-Regular.ttf");
+            
+            if (!fontCollection.TryGet("Roboto", out FontFamily fontFamily))
+                throw new Exception($"Couldn't find the font");
 
             var font = fontFamily.CreateFont(textFontSize, FontStyle.Regular);
 
