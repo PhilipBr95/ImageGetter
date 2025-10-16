@@ -46,7 +46,7 @@ namespace ImageGetter.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to get images");
+                _logger.LogError(ex, $"Failed to get images from {_settings.Host}");
                 throw;
             }
         }
