@@ -22,25 +22,33 @@ namespace ImageGetter.Services
 
         public IEnumerable<Media> GetImages()
         {
-            using SftpClient client = new SftpClient(new PasswordConnectionInfo(_settings.Host, _settings.Username, _settings.ImagePassword));
-            client.Connect();
-
-            _media = new List<Media>();
-
-            foreach (var path in _settings.Paths)
+            try
             {
-                if (client.Exists(path))
+                using SftpClient client = new SftpClient(new PasswordConnectionInfo(_settings.Host, _settings.Username, _settings.ImagePassword));
+                client.Connect();
+
+                _media = new List<Media>();
+
+                foreach (var path in _settings.Paths)
                 {
-                    _media.AddRange(client.ListDirectory(path)
-                                         .Where(i => !i.IsDirectory && i.FullName.EndsWith("jpg"))
-                                         .Select(s => new Media { Filename = s.FullName, Id = HttpUtility.UrlEncode(s.FullName) }));
+                    if (client.Exists(path))
+                    {
+                        _media.AddRange(client.ListDirectory(path)
+                                             .Where(i => !i.IsDirectory && i.FullName.EndsWith("jpg"))
+                                             .Select(s => new Media { Filename = s.FullName, Id = HttpUtility.UrlEncode(s.FullName) }));
+                    }
                 }
+
+                client.Disconnect();
+
+                _logger.LogInformation($"Found {_media.Count} images");
+                return _media;
             }
-
-            client.Disconnect();
-
-            _logger.LogInformation($"Found {_media.Count} images");
-            return _media;
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to get images");
+                throw;
+            }
         }
 
         public MediaFile? GetImage(string path)
