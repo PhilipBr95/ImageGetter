@@ -32,7 +32,26 @@ namespace ImageGetter.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Index(string? filename)
+        public async Task<IActionResult> GetImage()
+        {
+            return await GetImage(null, null, null);
+        }
+
+        [HttpGet("/image/{filename}")]
+        public async Task<IActionResult> GetImage(string filename)
+        {
+            return await GetImage(filename, null, null);
+        }
+
+        [HttpGet("/image/{width:int}/{height:int}")]
+        public async Task<IActionResult> GetImage(int width, int height)
+        {
+            return await GetImage(null, width, height);
+        }
+
+
+        [HttpGet("/image/{filename}/{width:int?}/{height:int?}")]
+        public async Task<IActionResult> GetImage(string? filename, int? width, int? height)
         {
             if (string.IsNullOrWhiteSpace(filename))
             {
@@ -49,6 +68,15 @@ namespace ImageGetter.Controllers
 
             var image = await Image.LoadAsync(new MemoryStream(file.Data));
             image.Mutate(x => x.AutoOrient());
+
+            if (width != null)
+            {
+                image.Mutate(x => x.Resize(new ResizeOptions
+                {
+                    Size = new Size(width ?? image.Width, height ?? image.Height),
+                    Mode = ResizeMode.Max
+                }));
+            }
 
             var landscape = file.IsLandscape;
             _logger.LogDebug($"{(landscape ? "Landscape mode" : "Portrate mode")} - Orientation:{file.Orientation} - Dimensions:{image.Width}x{image.Height}");
