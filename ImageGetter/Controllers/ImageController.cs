@@ -69,8 +69,10 @@ namespace ImageGetter.Controllers
             var image = await Image.LoadAsync(new MemoryStream(file.Data));
             image.Mutate(x => x.AutoOrient());
 
-            if (width != null)
+            if (width != null || height != null)
             {
+                _logger.LogDebug($"Resizing image to {width}x{height}");
+
                 image.Mutate(x => x.Resize(new ResizeOptions
                 {
                     Size = new Size(width ?? image.Width, height ?? image.Height),
