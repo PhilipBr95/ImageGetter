@@ -31,10 +31,10 @@ namespace ImageGetter.Controllers
             return Ok();
         }
 
-        [HttpGet]
-        public async Task<IActionResult> GetImage()
+        [HttpHead("/image/{width:int}/{height:int}")]
+        public IActionResult Head(int width, int height)
         {
-            return await GetImage(null, null, null);
+            return Head();
         }
 
         [HttpGet("/image/{filename}")]
