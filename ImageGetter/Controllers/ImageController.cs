@@ -71,7 +71,7 @@ namespace ImageGetter.Controllers
 
             if (width != null || height != null)
             {
-                _logger.LogDebug($"Resizing image to {width}x{height}");
+                _logger.LogDebug($"Resizing image to {width}x{height} from {image.Width}x{image.Height}");
 
                 image.Mutate(x => x.Resize(new ResizeOptions
                 {
