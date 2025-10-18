@@ -78,6 +78,8 @@ namespace ImageGetter.Controllers
                     Size = new Size(width ?? image.Width, height ?? image.Height),
                     Mode = ResizeMode.Max
                 }));
+
+                _logger.LogDebug($"Resized image: {image.Width}x{image.Height}");
             }
 
             var landscape = file.IsLandscape;
