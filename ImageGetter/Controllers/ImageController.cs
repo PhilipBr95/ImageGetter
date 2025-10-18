@@ -8,6 +8,9 @@ using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.Formats;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.Processing;
+using Swashbuckle.AspNetCore.SwaggerUI;
+using System.Text.Encodings.Web;
+using System.Web;
 
 namespace ImageGetter.Controllers
 {
@@ -57,9 +60,13 @@ namespace ImageGetter.Controllers
             {
                 var media = _imageService.GetRandomImage();
                 filename = media.Filename;
-            }           
 
-            var file = _imageService.GetImage(filename);
+                _logger.LogInformation($"{media.Filename} -> {HttpUtility.UrlEncode(media.Filename)}");
+            }
+            else
+                filename = HttpUtility.UrlDecode(filename);
+
+                var file = _imageService.GetImage(filename);
             if (file == null)
             {
                 _logger.LogError($"Failed to find image {filename}");
@@ -76,7 +83,9 @@ namespace ImageGetter.Controllers
                 image.Mutate(x => x.Resize(new ResizeOptions
                 {
                     Size = new Size(width ?? image.Width, height ?? image.Height),
-                    Mode = ResizeMode.Max
+                    Mode = ResizeMode.Crop,
+                    Position = AnchorPositionMode.Center,
+                    Sampler = KnownResamplers.Lanczos3
                 }));
 
                 _logger.LogDebug($"Resized image: {image.Width}x{image.Height}");
