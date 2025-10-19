@@ -1,4 +1,5 @@
-﻿using ImageGetter.Models;
+﻿using FaceAiSharp;
+using ImageGetter.Models;
 using ImageGetter.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -40,7 +41,13 @@ namespace ImageGetter.Controllers
             return Head();
         }
 
-        [HttpGet("/image/{filename}")]
+        [HttpGet("/image")]
+        public async Task<IActionResult> GetImage()
+        {
+            return await GetImage(null, null, null);
+        }
+
+        [HttpGet("/image/{filename:alpha?}")]
         public async Task<IActionResult> GetImage(string filename)
         {
             return await GetImage(filename, null, null);
@@ -53,7 +60,7 @@ namespace ImageGetter.Controllers
         }
 
 
-        [HttpGet("/image/{filename}/{width:int?}/{height:int?}")]
+        [HttpGet("/image/{filename:alpha?}/{width:int?}/{height:int?}")]
         public async Task<IActionResult> GetImage(string? filename, int? width, int? height)
         {
             if (string.IsNullOrWhiteSpace(filename))
@@ -76,17 +83,35 @@ namespace ImageGetter.Controllers
             var image = await Image.LoadAsync(new MemoryStream(file.Data));
             image.Mutate(x => x.AutoOrient());
 
+            var det = FaceAiSharpBundleFactory.CreateFaceDetectorWithLandmarks();
+            var rec = FaceAiSharpBundleFactory.CreateFaceEmbeddingsGenerator();
+
+            var faces = det.DetectFaces((Image<SixLabors.ImageSharp.PixelFormats.Rgb24>)image);
+
+            foreach (var face in faces)
+            {
+                Console.WriteLine($"Found a face with conficence {face.Confidence}: {face.Box}");
+            }
+
             if (width != null || height != null)
             {
                 _logger.LogDebug($"Resizing image to {width}x{height} from {image.Width}x{image.Height}");
 
-                image.Mutate(x => x.Resize(new ResizeOptions
+                var resizeOptions = new ResizeOptions
                 {
                     Size = new Size(width ?? image.Width, height ?? image.Height),
                     Mode = ResizeMode.Crop,
                     Position = AnchorPositionMode.Center,
                     Sampler = KnownResamplers.Lanczos3
-                }));
+                };
+
+                if(faces.Any())
+                {
+                    var faceBox = faces.OrderByDescending(o => o.Confidence).First().Box;
+                    resizeOptions.CenterCoordinates = new PointF(faceBox.X + (faceBox.Width / 2), faceBox.Y + (faceBox.Height / 2));
+                }
+
+                image.Mutate(x => x.Resize(resizeOptions));
 
                 _logger.LogDebug($"Resized image: {image.Width}x{image.Height}");
             }
