@@ -1,16 +1,14 @@
-﻿using FaceAiSharp;
-using ImageGetter.Models;
+﻿using ImageGetter.Models;
 using ImageGetter.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using SixLabors.Fonts;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Drawing.Processing;
-using SixLabors.ImageSharp.Formats;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.Processing;
-using Swashbuckle.AspNetCore.SwaggerUI;
-using System.Text.Encodings.Web;
+using System.Runtime;
+using System.Text.Json;
 using System.Web;
 
 namespace ImageGetter.Controllers
@@ -21,11 +19,15 @@ namespace ImageGetter.Controllers
     {
         private readonly IImageService _imageService;
         private readonly ILogger<ImageController> _logger;
+        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly Settings _settings;
 
-        public ImageController(IImageService imageService, ILogger<ImageController> logger) 
+        public ImageController(IImageService imageService, IHttpClientFactory httpClientFactory, IOptions<Settings> settings, ILogger<ImageController> logger) 
         {
             _imageService = imageService;
             _logger = logger;
+            _httpClientFactory = httpClientFactory;
+            _settings = settings.Value;
         }
 
         [HttpHead]
@@ -82,17 +84,7 @@ namespace ImageGetter.Controllers
 
             var image = await Image.LoadAsync(new MemoryStream(file.Data));
             image.Mutate(x => x.AutoOrient());
-
-            var det = FaceAiSharpBundleFactory.CreateFaceDetectorWithLandmarks();
-            var rec = FaceAiSharpBundleFactory.CreateFaceEmbeddingsGenerator();
-
-            var faces = det.DetectFaces((Image<SixLabors.ImageSharp.PixelFormats.Rgb24>)image);
-
-            foreach (var face in faces)
-            {
-                Console.WriteLine($"Found a face with conficence {face.Confidence}: {face.Box}");
-            }
-
+            
             if (width != null || height != null)
             {
                 _logger.LogDebug($"Resizing image to {width}x{height} from {image.Width}x{image.Height}");
@@ -105,11 +97,10 @@ namespace ImageGetter.Controllers
                     Sampler = KnownResamplers.Lanczos3
                 };
 
-                if(faces.Any())
-                {
-                    var faceBox = faces.OrderByDescending(o => o.Confidence).First().Box;
-                    resizeOptions.CenterCoordinates = new PointF(faceBox.X + (faceBox.Width / 2), faceBox.Y + (faceBox.Height / 2));
-                }
+                Face? face = await FindFace(file);
+
+                if (face != null)
+                    resizeOptions.CenterCoordinates = new PointF(face.X + (face.Width / 2), face.Y + (face.Height / 2));
 
                 image.Mutate(x => x.Resize(resizeOptions));
 
@@ -130,6 +121,20 @@ namespace ImageGetter.Controllers
             MemoryStream ms = new();
             image.Save(ms, new JpegEncoder());
             return File(ms.ToArray(), "image/jpeg");
+        }
+
+        private async Task<Face?> FindFace(MediaFile file)
+        {
+            var http = _httpClientFactory.CreateClient();
+            var content = new MultipartFormDataContent();
+            var fileContent = new StreamContent(new MemoryStream(file.Data));
+
+            content.Add(fileContent, "file", "fileName");
+            var faceResponse = await http.PostAsync(_settings.FaceApi, content);
+            var faceString = await faceResponse.Content.ReadAsStringAsync();
+            var face = JsonSerializer.Deserialize<Face>(faceString);
+
+            return face;
         }
 
         private void AddText(string text, Image image, int yOffset, bool landscape)

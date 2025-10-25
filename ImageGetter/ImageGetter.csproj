@@ -24,8 +24,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="FaceAiSharp" Version="0.5.23" />
-    <PackageReference Include="FaceAiSharp.Bundle" Version="0.5.23" />
     <PackageReference Include="Geocoding.Google" Version="4.0.1" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.22.1" />
     <PackageReference Include="SixLabors.Fonts" Version="2.1.3" />
