@@ -100,7 +100,10 @@ namespace ImageGetter.Controllers
                 Face? face = await FindFace(file);
 
                 if (face != null)
+                {
+                    _logger.LogDebug($"Face found at {face.X},{face.Y} size {face.Width}x{face.Height}");
                     resizeOptions.CenterCoordinates = new PointF(face.X + (face.Width / 2), face.Y + (face.Height / 2));
+                }
 
                 image.Mutate(x => x.Resize(resizeOptions));
 
