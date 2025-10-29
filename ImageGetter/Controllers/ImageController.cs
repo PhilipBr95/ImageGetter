@@ -102,7 +102,7 @@ namespace ImageGetter.Controllers
                 //Did we find a face with reasonable confidence?
                 if (face!.Confidence > 2)
                 {
-                    _logger.LogDebug($"Face found at {face.X},{face.Y} size {face.Width}x{face.Height}");
+                    _logger.LogDebug($"Face found at {face.X},{face.Y} size {face.Width}x{face.Height} with {face.Confidence}");
                     resizeOptions.CenterCoordinates = new PointF(face.X + (face.Width / 2), face.Y + (face.Height / 2));
                 }
 
