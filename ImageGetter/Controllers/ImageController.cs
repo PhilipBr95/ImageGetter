@@ -137,6 +137,12 @@ namespace ImageGetter.Controllers
             var faceString = await faceResponse.Content.ReadAsStringAsync();
             var face = JsonSerializer.Deserialize<Face>(faceString);
 
+            if (face.X == 0)
+            {
+                _logger.LogError($"Unexpected FindFace response: {faceString}");
+                return null;
+            }
+
             return face;
         }
 
