@@ -155,7 +155,7 @@ namespace ImageGetter.Controllers
                 return null;
             }
 
-            if (face!.X == 0)
+            if (face == null || face.X == 0)
             {
                 _logger.LogError($"Unexpected FindFace response: {faceString}");
                 return null;
