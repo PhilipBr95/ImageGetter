@@ -102,7 +102,7 @@ namespace ImageGetter.Controllers
                 //Did we find a face with reasonable confidence?
                 if (face!.Confidence > 2)
                 {
-                    _logger.LogDebug($"Face found at {face.X},{face.Y} size {face.Width}x{face.Height} with {face.Confidence}");
+                    _logger.LogDebug($"Face found at {face.X},{face.Y} size {face.Width}x{face.Height} with {face.Confidence} Confidence");
                     resizeOptions.CenterCoordinates = new PointF(face.X + (face.Width / 2), face.Y + (face.Height / 2));
                 }
 
@@ -135,8 +135,20 @@ namespace ImageGetter.Controllers
 
             content.Add(fileContent, "file", "fileName");
             var faceResponse = await http.PostAsync(_settings.FaceApi, content);
-            var faceString = await faceResponse.Content.ReadAsStringAsync();
-            var face = JsonSerializer.Deserialize<Face>(faceString);
+
+            string faceString = "";
+            Face? face = null;
+
+            try
+            {
+                faceString = await faceResponse.Content.ReadAsStringAsync();
+                face = JsonSerializer.Deserialize<Face>(faceString);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Failed to deserialize FindFace response: {faceString}");
+                return null;
+            }
 
             if (face.X == 0)
             {
