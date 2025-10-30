@@ -106,9 +106,9 @@ namespace ImageGetter.Controllers
                     resizeOptions.CenterCoordinates = new PointF(face.X + (face.Width / 2), face.Y + (face.Height / 2));
                 }
 
-                image.Mutate(x => x.Resize(resizeOptions));
+                _logger.LogDebug($"Resizing image: {image.Width}x{image.Height} with Center {resizeOptions.CenterCoordinates}");
 
-                _logger.LogDebug($"Resized image: {image.Width}x{image.Height}");
+                image.Mutate(x => x.Resize(resizeOptions));
             }
 
             var landscape = file.IsLandscape;
@@ -150,7 +150,7 @@ namespace ImageGetter.Controllers
                 return null;
             }
 
-            if (face.X == 0)
+            if (face!.X == 0)
             {
                 _logger.LogError($"Unexpected FindFace response: {faceString}");
                 return null;
