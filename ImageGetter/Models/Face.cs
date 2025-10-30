@@ -1,5 +1,8 @@
-﻿namespace ImageGetter.Models
+﻿using System.Diagnostics;
+
+namespace ImageGetter.Models
 {
+    [DebuggerDisplay("Confidence = {Confidence}, Width = {Width}, Height = {Height}")]
     class Face
     {
         public int X { get; set; }

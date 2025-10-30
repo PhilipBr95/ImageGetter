@@ -1,3 +1,7 @@
 # For more info on HTTP files go to https://aka.ms/vs/httpfile
 
+GET https://localhost:8091/image/1000/1000?debug=true
+
+###
+
 GET https://localhost:8091/image/1000/1000

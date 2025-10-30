@@ -9,6 +9,8 @@ using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
+using SixLabors.ImageSharp.Processing.Processors.Transforms;
+using System.Diagnostics;
 using System.Runtime;
 using System.Text.Json;
 using System.Web;
@@ -64,9 +66,13 @@ namespace ImageGetter.Controllers
         }
 
 
-        [HttpGet("/image/{filename:alpha?}/{width:int?}/{height:int?}")]
-        public async Task<IActionResult> GetImage(string? filename, int? width, int? height)
+        [HttpGet("/image/{filename}/{width}/{height}")]
+        public async Task<IActionResult> GetImage(string? filename = null, int? width = null, int? height = null)
         {
+            //Can't figure out optional params in routing :-(
+            _ = bool.TryParse(Request.Query.Where(f => f.Key.Equals("debug", StringComparison.CurrentCultureIgnoreCase))
+                                           .FirstOrDefault().Value, out bool debug);
+
             if (string.IsNullOrWhiteSpace(filename))
             {
                 var media = _imageService.GetRandomImage();
@@ -77,7 +83,7 @@ namespace ImageGetter.Controllers
             else
                 filename = HttpUtility.UrlDecode(filename);
 
-                var file = _imageService.GetImage(filename);
+            var file = _imageService.GetImage(filename);
             if (file == null)
             {
                 _logger.LogError($"Failed to find image {filename}");
@@ -86,53 +92,126 @@ namespace ImageGetter.Controllers
 
             var image = await Image.LoadAsync(new MemoryStream(file.Data));
             image.Mutate(x => x.AutoOrient());
-            
+
             if (width != null || height != null)
             {
                 _logger.LogDebug($"Resizing image to {width}x{height} from {image.Width}x{image.Height}");
+                
+                IEnumerable<Face>? faces = await FindFaces(file);
+                var bestFaces = faces?.Where(w => w.Confidence > _settings.MinConfidence)
+                                      .OrderByDescending(o => o.Confidence);
+                PointF centerCoordinates = PointF.Empty;
 
-                var resizeOptions = new ResizeOptions
+                var ignoreX = false;
+                var ignoreY = false;
+
+                if (width > image.Width)
                 {
-                    Size = new Size(width ?? image.Width, height ?? image.Height),
-                    Mode = ResizeMode.Crop,
-                    Position = AnchorPositionMode.Center,
-                    Sampler = KnownResamplers.Lanczos3
-                };
-
-                Face? face = await FindFace(file);
-
-                //Did we find a face with reasonable confidence?
-                if (face?.Confidence > 5)
-                {
-                    _logger.LogDebug($"Face found at {face.X},{face.Y} size {face.Width}x{face.Height} with {face.Confidence} Confidence");
-                    resizeOptions.CenterCoordinates = new PointF(face.X + (face.Width / 2), face.Y + (face.Height / 2));
+                    ignoreX = true;
+                    width = image.Width;
                 }
 
-                _logger.LogDebug($"Resizing image: {image.Width}x{image.Height} with Center {resizeOptions.CenterCoordinates}");
+                if (height > image.Height)
+                {
+                    ignoreY = true;
+                    height = image.Height;
+                }
 
-                var faceRect = new RectangularPolygon(face.X, face.Y, face.Width, face.Height);
-                image.Mutate(ctx => ctx.Draw(Color.Yellow, 6f, faceRect));
+                var x = (image.Width / 2) - (width.Value / 2);
+                var y = (image.Height / 2) - (height.Value / 2);
 
-                //image.Mutate(x => x.Resize(resizeOptions));
+                //Default crop
+                var cropRect = new Rectangle(x, y, width.Value, height.Value);
+
+                //Did we find a face with reasonable confidence?
+                if (bestFaces?.Any() == true)
+                {                    
+                    //Check for good faces
+                    var avgFaces = bestFaces.Where(w => w.Confidence > _settings.MinAvgConfidence && w.Height > _settings.MinAvgHeight);
+
+                    //Average out the best faces
+                    if (avgFaces.Any())
+                    {                       
+                        foreach (var face in avgFaces)
+                        {
+                            _logger.LogDebug($"Averaging Face found at {face.X},{face.Y} size {face.Width}x{face.Height} with {face.Confidence} Confidence");
+                            x += face.X + (face.Width / 2);
+                            y += face.Y + (face.Height / 2);
+                        }
+
+                        centerCoordinates = new PointF(x / avgFaces.Count(), y / avgFaces.Count());
+                    }
+                    else        
+                    {                         
+                        //Just focus on the best
+                        var face = bestFaces.Where(w => w.Height > _settings.MinHeight)
+                                            .OrderByDescending(o => o.Confidence).FirstOrDefault();
+
+                        if (face != null)
+                        {
+                            _logger.LogDebug($"Face found at {face.X},{face.Y} size {face.Width}x{face.Height} with {face.Confidence} Confidence");
+                            centerCoordinates = new PointF(face.X + (face.Width / 2), face.Y + (face.Height / 2));
+                        }
+                    }
+
+                    x = (int)centerCoordinates.X - (width.Value / 2);
+                    if (ignoreX || x < 0)
+                        x = 0;                  
+
+                    y = (int)centerCoordinates.Y - (height.Value! / 2);
+                    if (ignoreY || y < 0)
+                        y = 0;
+
+                    if (x + width.Value > image.Width)
+                        x = image.Width - width.Value;
+
+                    if (y + height.Value > image.Height)
+                        y = image.Height - height.Value;
+
+                    cropRect = new Rectangle((int)x, (int)y, width.Value, height.Value);
+                }
+                
+                _logger.LogDebug($"Resizing image: {image.Width}x{image.Height} with Center {centerCoordinates}");
+
+                if (debug == true)
+                {                    
+                    var cutRect = new RectangularPolygon(cropRect);
+                    image.Mutate(ctx => ctx.Draw(Color.Orange, 6f, cutRect));
+
+                    if (faces != null)
+                    {
+                        foreach (var face in faces)
+                        {
+                            var faceRect = new RectangularPolygon(face.X, face.Y, face.Width, face.Height);
+                            image.Mutate(ctx => ctx.Draw(Color.Yellow, 6f, faceRect));
+                        }
+                    }
+
+                    if (centerCoordinates != PointF.Empty)
+                    {
+                        var centerRect = new RectangularPolygon(centerCoordinates.X - 15, centerCoordinates.Y - 15, 30, 30);
+                        image.Mutate(ctx => ctx.Fill(Color.OrangeRed, centerRect));
+                    }
+                }
+                else
+                    image.Mutate(x => x.Crop(cropRect));
             }
 
             var landscape = file.IsLandscape;
             _logger.LogDebug($"{(landscape ? "Landscape mode" : "Portrate mode")} - Orientation:{file.Orientation} - Dimensions:{image.Width}x{image.Height}");
-
-            AddText(file.ParentFolderName, image, 0, landscape);
-
+            
             var createdDate = file.CreatedDate.ToString("dd/MMM/yyyy");
-            AddText(createdDate, image, 120, landscape);
-
             var location = file.Location;
-            AddText(location, image, 240, landscape);
+            var caption = $"{file.ParentFolderName}\n{createdDate}\n{location}";
+
+            AddText(caption, image, 0, landscape);
 
             MemoryStream ms = new();
             image.Save(ms, new JpegEncoder());
             return File(ms.ToArray(), "image/jpeg");
         }
 
-        private async Task<Face?> FindFace(MediaFile file)
+        private async Task<IEnumerable<Face>?> FindFaces(MediaFile file)
         {
             var http = _httpClientFactory.CreateClient();
             var content = new MultipartFormDataContent();
@@ -142,12 +221,12 @@ namespace ImageGetter.Controllers
             var faceResponse = await http.PostAsync(_settings.FaceApi, content);
 
             string faceString = "";
-            Face? face = null;
+            Face[]? faces = null;
 
             try
             {
                 faceString = await faceResponse.Content.ReadAsStringAsync();
-                face = JsonSerializer.Deserialize<Face>(faceString);
+                faces = JsonSerializer.Deserialize<Face[]>(faceString);
             }
             catch (Exception ex)
             {
@@ -155,13 +234,13 @@ namespace ImageGetter.Controllers
                 return null;
             }
 
-            if (face?.X == 0)
+            if (faces.Length == 0 || faces[0]?.X == 0)
             {
                 _logger.LogError($"Unexpected FindFace response: {faceString}");
                 return null;
             }
 
-            return face;
+            return faces;
         }
 
         private void AddText(string text, Image image, int yOffset, bool landscape)
