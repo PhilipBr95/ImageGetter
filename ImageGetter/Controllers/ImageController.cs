@@ -4,8 +4,10 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using SixLabors.Fonts;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Drawing;
 using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using System.Runtime;
 using System.Text.Json;
@@ -108,7 +110,10 @@ namespace ImageGetter.Controllers
 
                 _logger.LogDebug($"Resizing image: {image.Width}x{image.Height} with Center {resizeOptions.CenterCoordinates}");
 
-                image.Mutate(x => x.Resize(resizeOptions));
+                var faceRect = new RectangularPolygon(face.X, face.Y, face.Width, face.Height);
+                image.Mutate(ctx => ctx.Draw(Color.Yellow, 6f, faceRect));
+
+                //image.Mutate(x => x.Resize(resizeOptions));
             }
 
             var landscape = file.IsLandscape;
