@@ -102,7 +102,7 @@ namespace ImageGetter.Controllers
                 Face? face = await FindFace(file);
 
                 //Did we find a face with reasonable confidence?
-                if (face!.Confidence > 5)
+                if (face?.Confidence > 5)
                 {
                     _logger.LogDebug($"Face found at {face.X},{face.Y} size {face.Width}x{face.Height} with {face.Confidence} Confidence");
                     resizeOptions.CenterCoordinates = new PointF(face.X + (face.Width / 2), face.Y + (face.Height / 2));
@@ -155,7 +155,7 @@ namespace ImageGetter.Controllers
                 return null;
             }
 
-            if (face == null || face.X == 0)
+            if (face?.X == 0)
             {
                 _logger.LogError($"Unexpected FindFace response: {faceString}");
                 return null;
