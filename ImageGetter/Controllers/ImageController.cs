@@ -131,7 +131,9 @@ namespace ImageGetter.Controllers
 
                     //Average out the best faces
                     if (avgFaces.Any())
-                    {                       
+                    {
+                        x = 0; y = 0;
+
                         foreach (var face in avgFaces)
                         {
                             _logger.LogDebug($"Averaging Face found at {face.X},{face.Y} size {face.Width}x{face.Height} with {face.Confidence} Confidence");
@@ -202,7 +204,7 @@ namespace ImageGetter.Controllers
             
             var createdDate = file.CreatedDate.ToString("dd/MMM/yyyy");
             var location = file.Location;
-            var caption = $"{file.ParentFolderName}\n{createdDate}\n{location}";
+            var caption = $"{file.ParentFolderName} @ {createdDate}\n{location}";
 
             AddText(caption, image, 0, landscape);
 
@@ -227,6 +229,8 @@ namespace ImageGetter.Controllers
             {
                 faceString = await faceResponse.Content.ReadAsStringAsync();
                 faces = JsonSerializer.Deserialize<Face[]>(faceString);
+
+                _logger.LogInformation($"Discovered {faces.Length} faces");
             }
             catch (Exception ex)
             {
