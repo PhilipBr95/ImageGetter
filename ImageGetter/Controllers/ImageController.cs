@@ -7,11 +7,7 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Drawing;
 using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.Formats.Jpeg;
-using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
-using SixLabors.ImageSharp.Processing.Processors.Transforms;
-using System.Diagnostics;
-using System.Runtime;
 using System.Text.Json;
 using System.Web;
 
@@ -204,7 +200,7 @@ namespace ImageGetter.Controllers
             
             var createdDate = file.CreatedDate.ToString("dd/MMM/yyyy");
             var location = file.Location;
-            var caption = $"{file.ParentFolderName} @ {createdDate}\n{location}";
+            var caption = $"{file.ParentFolderName} @ {createdDate}\n{location}\n{filename}";
 
             AddText(caption, image, 0, landscape);
 
@@ -251,13 +247,7 @@ namespace ImageGetter.Controllers
         {
             const float TEXTPADDING = 18f;
             
-            float textFontSize = 100f;
-
-            if (landscape)
-            {
-                textFontSize += 50f;
-                yOffset += 30;
-            }
+            float textFontSize = 100f;            
 
             FontCollection fontCollection = new();            
             fontCollection.Add("Fonts/Roboto-Regular.ttf");
