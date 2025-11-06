@@ -12,5 +12,6 @@
         public double MinAvgConfidence { get; set; } = 4;
         public int MinAvgHeight { get; set; } = 80;
         public int MinHeight { get; set; } = 80;
+        public float ImageRatioTolerance { get; set; } = 0.2f;
     }
 }

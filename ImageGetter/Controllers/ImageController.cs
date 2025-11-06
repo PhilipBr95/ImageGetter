@@ -7,7 +7,9 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Drawing;
 using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
+using System.Numerics;
 using System.Text.Json;
 using System.Web;
 
@@ -88,40 +90,86 @@ namespace ImageGetter.Controllers
 
             var image = await Image.LoadAsync(new MemoryStream(file.Data));
             image.Mutate(x => x.AutoOrient());
+            image = await ResizeImageAsync(width, height, debug, file, image);
 
-            if (width != null || height != null)
+            var landscape = file.IsLandscape;
+            _logger.LogDebug($"{(landscape ? "Landscape mode" : "Portrate mode")} - Orientation:{file.Orientation} - Dimensions:{image.Width}x{image.Height}");
+
+            var createdDate = file.CreatedDate.ToString("dd/MMM/yyyy");
+            var location = file.Location;
+            var caption = $"{file.ParentFolderName} @ {createdDate}\n{location}";
+
+            if (debug)
+                caption += $"\n{filename}";
+
+            AddText(caption, image, 0, landscape);
+
+            MemoryStream ms = new();
+            image.Save(ms, new JpegEncoder());
+            return File(ms.ToArray(), "image/jpeg");
+        }
+
+        private async Task<Image> ResizeImageAsync(int? width, int? height, bool debug, MediaFile file, Image image)
+        {
+            if (width == null && height == null)
+                return image;
+
+            _logger.LogDebug($"Resizing image to {width}x{height} from {image.Width}x{image.Height}");
+
+            PointF centerCoordinates = PointF.Empty;
+
+            var ignoreX = false;
+            var ignoreY = false;
+
+            if (width > image.Width)
             {
-                _logger.LogDebug($"Resizing image to {width}x{height} from {image.Width}x{image.Height}");
-                
+                ignoreX = true;
+                width = image.Width;
+            }
+
+            if (height > image.Height)
+            {
+                ignoreY = true;
+                height = image.Height;
+            }
+
+            //Resolution: 1280 x 800 pixels => 3200 x 2000 => 3200/2000
+            var imageRatio = (float)image.Width / image.Height;
+            var targetRatio = (float)(width ?? image.Width) / (height ?? image.Height);
+            var ratioDiff = Math.Abs(imageRatio - targetRatio);
+            var useImageCenter = ratioDiff > _settings.ImageRatioTolerance;
+
+            _logger.LogInformation($"Image ratio is {imageRatio}, Target ratio is {targetRatio}. Diff: {ratioDiff}");
+
+            if (useImageCenter)
+            {
                 IEnumerable<Face>? faces = await FindFaces(file);
                 var bestFaces = faces?.Where(w => w.Confidence > _settings.MinConfidence)
-                                      .OrderByDescending(o => o.Confidence);
-                PointF centerCoordinates = PointF.Empty;
-
-                var ignoreX = false;
-                var ignoreY = false;
-
-                if (width > image.Width)
-                {
-                    ignoreX = true;
-                    width = image.Width;
-                }
-
-                if (height > image.Height)
-                {
-                    ignoreY = true;
-                    height = image.Height;
-                }
+                                        .OrderByDescending(o => o.Confidence);
 
                 var x = (image.Width / 2) - (width.Value / 2);
                 var y = (image.Height / 2) - (height.Value / 2);
+
+                if(faces == null || faces.Count() == 0)
+                {
+                    //Can we do some clever resizing
+                    if(image.Width > width && image.Height > height)
+                    {
+                        x = 0;
+                        width = image.Width;
+                        
+                        var newHeight = (int)(image.Width / targetRatio);
+                        y -= (newHeight - (height ?? image.Height)) / 2;
+                        height = newHeight;
+                    }
+                }
 
                 //Default crop
                 var cropRect = new Rectangle(x, y, width.Value, height.Value);
 
                 //Did we find a face with reasonable confidence?
                 if (bestFaces?.Any() == true)
-                {                    
+                {
                     //Check for good faces
                     var avgFaces = bestFaces.Where(w => w.Confidence > _settings.MinAvgConfidence && w.Height > _settings.MinAvgHeight);
 
@@ -139,8 +187,8 @@ namespace ImageGetter.Controllers
 
                         centerCoordinates = new PointF(x / avgFaces.Count(), y / avgFaces.Count());
                     }
-                    else        
-                    {                         
+                    else
+                    {
                         //Just focus on the best
                         var face = bestFaces.Where(w => w.Height > _settings.MinHeight)
                                             .OrderByDescending(o => o.Confidence).FirstOrDefault();
@@ -154,7 +202,7 @@ namespace ImageGetter.Controllers
 
                     x = (int)centerCoordinates.X - (width.Value / 2);
                     if (ignoreX || x < 0)
-                        x = 0;                  
+                        x = 0;
 
                     y = (int)centerCoordinates.Y - (height.Value! / 2);
                     if (ignoreY || y < 0)
@@ -168,11 +216,11 @@ namespace ImageGetter.Controllers
 
                     cropRect = new Rectangle((int)x, (int)y, width.Value, height.Value);
                 }
-                
+
                 _logger.LogDebug($"Resizing image: {image.Width}x{image.Height} with Center {centerCoordinates}");
 
                 if (debug == true)
-                {                    
+                {
                     var cutRect = new RectangularPolygon(cropRect);
                     image.Mutate(ctx => ctx.Draw(Color.Orange, 6f, cutRect));
 
@@ -194,19 +242,10 @@ namespace ImageGetter.Controllers
                 else
                     image.Mutate(x => x.Crop(cropRect));
             }
+            else
+                _logger.LogInformation($"Not Resizing as the image ratio is {ratioDiff}");
 
-            var landscape = file.IsLandscape;
-            _logger.LogDebug($"{(landscape ? "Landscape mode" : "Portrate mode")} - Orientation:{file.Orientation} - Dimensions:{image.Width}x{image.Height}");
-            
-            var createdDate = file.CreatedDate.ToString("dd/MMM/yyyy");
-            var location = file.Location;
-            var caption = $"{file.ParentFolderName} @ {createdDate}\n{location}\n{filename}";
-
-            AddText(caption, image, 0, landscape);
-
-            MemoryStream ms = new();
-            image.Save(ms, new JpegEncoder());
-            return File(ms.ToArray(), "image/jpeg");
+            return image;
         }
 
         private async Task<IEnumerable<Face>?> FindFaces(MediaFile file)
@@ -247,12 +286,12 @@ namespace ImageGetter.Controllers
         {
             const float TEXTPADDING = 18f;
             
-            float textFontSize = 100f;            
+            float textFontSize = 150f;            
 
             FontCollection fontCollection = new();            
-            fontCollection.Add("Fonts/Roboto-Regular.ttf");
-            
-            if (!fontCollection.TryGet("Roboto", out FontFamily fontFamily))
+            fontCollection.Add("Fonts/OpenSans-VariableFont_wdth,wght.ttf");
+
+            if (!fontCollection.TryGet("Open Sans", out FontFamily fontFamily))
                 throw new Exception($"Couldn't find the font");
 
             var font = fontFamily.CreateFont(textFontSize, FontStyle.Regular);
@@ -267,10 +306,8 @@ namespace ImageGetter.Controllers
             var location = new PointF(image.Width - rect.Width - TEXTPADDING, image.Height - rect.Height - TEXTPADDING);
 
             location = new PointF(30, 30 + yOffset);
-            var locationBack = new PointF(35, 35 + yOffset);            
 
-            image.Mutate(x => x.DrawText(text, font, Color.Black, locationBack)
-                               .DrawText(text, font, Color.White, location));
+            image.Mutate(x => x.DrawText(text, font, Brushes.Solid(Color.White), Pens.Solid(Color.Black, 5), location));
         }
     }
 }
