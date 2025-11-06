@@ -307,7 +307,7 @@ namespace ImageGetter.Controllers
 
             location = new PointF(30, 30 + yOffset);
 
-            image.Mutate(x => x.DrawText(text, font, Brushes.Solid(Color.White), Pens.Solid(Color.Black, 5), location));
+            image.Mutate(x => x.DrawText(text, font, Brushes.Solid(Color.White), Pens.Solid(Color.Black, 10), location));
         }
     }
 }
