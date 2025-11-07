@@ -104,6 +104,8 @@ namespace ImageGetter.Controllers
 
             AddText(caption, image, 0, landscape, debug);
 
+            _logger.LogInformation($"Image text: {caption}");
+
             MemoryStream ms = new();
             image.Save(ms, new JpegEncoder());
             return File(ms.ToArray(), "image/jpeg");
