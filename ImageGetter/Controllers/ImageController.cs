@@ -220,7 +220,7 @@ namespace ImageGetter.Controllers
                     cropRect = new Rectangle((int)x, (int)y, width.Value, height.Value);
                 }
                 else
-                    _logger.LogDebug($"None of the faces look good :-(... Min Confidence: {faces!.Min(m => m.Confidence)}");
+                    _logger.LogDebug($"None of the faces look good :-(... Min Confidence: {faces?.Min(m => m.Confidence)}");
 
                 _logger.LogDebug($"Resizing image: {image.Width}x{image.Height} with Center {centerCoordinates}");
 
