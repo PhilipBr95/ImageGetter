@@ -199,6 +199,8 @@ namespace ImageGetter.Controllers
                             _logger.LogDebug($"Face found at {face.X},{face.Y} size {face.Width}x{face.Height} with {face.Confidence} Confidence");
                             centerCoordinates = new PointF(face.X + (face.Width / 2), face.Y + (face.Height / 2));
                         }
+                        else
+                            _logger.LogDebug($"No faces are tall enough. Min Height: {bestFaces.Min(m => m.Height)}");
                     }
 
                     x = (int)centerCoordinates.X - (width.Value / 2);
