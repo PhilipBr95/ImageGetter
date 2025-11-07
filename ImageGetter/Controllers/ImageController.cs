@@ -306,8 +306,10 @@ namespace ImageGetter.Controllers
             var location = new PointF(image.Width - rect.Width - TEXTPADDING, image.Height - rect.Height - TEXTPADDING);
 
             location = new PointF(30, 30 + yOffset);
+            var locationBack = new PointF(40, 40 + yOffset);
 
-            image.Mutate(x => x.DrawText(text, font, Brushes.Solid(Color.White), Pens.Solid(Color.Black, 7), location));
+            image.Mutate(x => x.DrawText(text, font, Color.Black, locationBack)
+                               .DrawText(text, font, Color.White, location));
         }
     }
 }
