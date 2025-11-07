@@ -102,7 +102,7 @@ namespace ImageGetter.Controllers
             if (debug)
                 caption += $"\n{filename}";
 
-            AddText(caption, image, 0, landscape);
+            AddText(caption, image, 0, landscape, debug);
 
             MemoryStream ms = new();
             image.Save(ms, new JpegEncoder());
@@ -282,7 +282,7 @@ namespace ImageGetter.Controllers
             return faces;
         }
 
-        private void AddText(string text, Image image, int yOffset, bool landscape)
+        private void AddText(string text, Image image, int yOffset, bool landscape, bool debug)
         {
             const float TEXTPADDING = 18f;
             
@@ -307,9 +307,25 @@ namespace ImageGetter.Controllers
 
             location = new PointF(30, 30 + yOffset);
             var locationBack = new PointF(40, 40 + yOffset);
+            var textRect = new RectangleF(location.X, location.Y, Math.Min(rect.Width, image.Width) - location.X, rect.Height - location.Y);
 
-            image.Mutate(x => x.DrawText(text, font, Color.Black, locationBack)
-                               .DrawText(text, font, Color.White, location));
+            if (debug)           
+                image.Mutate(ctx => ctx.Draw(Color.Coral, 6f, textRect));
+
+            //Figure out the avg background colour
+            var croppedImageResizedToOnePixel = image.Clone(
+                img => img.Crop((Rectangle)textRect)
+                          .Resize(new Size(1, 1))
+             );
+            
+            var averageColor = croppedImageResizedToOnePixel.CloneAs<Rgba32>()[0, 0];
+            var luminance = (0.299 * averageColor.R + 0.587 * averageColor.G + 0.114 * averageColor.B) / 255;
+
+            var mainColour = luminance > 0.5 ? Color.Black : Color.White;
+            var outerColour = luminance > 0.5 ? Color.White : Color.Black;
+
+            image.Mutate(x => x.DrawText(text, font, outerColour, locationBack)
+                               .DrawText(text, font, mainColour, location));
         }
     }
 }
