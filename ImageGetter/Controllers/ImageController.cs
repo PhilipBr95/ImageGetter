@@ -200,7 +200,7 @@ namespace ImageGetter.Controllers
                             centerCoordinates = new PointF(face.X + (face.Width / 2), face.Y + (face.Height / 2));
                         }
                         else
-                            _logger.LogDebug($"No faces are tall enough. Min Height: {bestFaces.Min(m => m.Height)}");
+                            _logger.LogDebug($"No faces are tall enough. Min Face Height: {bestFaces.Min(m => m.Height)}. MinHeight: {_settings.MinHeight}");
                     }
 
                     x = (int)centerCoordinates.X - (width.Value / 2);
