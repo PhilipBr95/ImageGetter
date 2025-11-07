@@ -9,6 +9,7 @@ using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
+using System;
 using System.Numerics;
 using System.Text.Json;
 using System.Web;
@@ -103,9 +104,7 @@ namespace ImageGetter.Controllers
                 caption += $"\n{filename}";
 
             AddText(caption, image, 0, landscape, debug);
-
-            _logger.LogInformation($"Image text: {caption}");
-
+            
             MemoryStream ms = new();
             image.Save(ms, new JpegEncoder());
             return File(ms.ToArray(), "image/jpeg");
@@ -325,6 +324,8 @@ namespace ImageGetter.Controllers
 
             var mainColour = luminance > 0.5 ? Color.Black : Color.White;
             var outerColour = luminance > 0.5 ? Color.White : Color.Black;
+
+            _logger.LogInformation($"Found luminance: {luminance} for text: {text}");
 
             image.Mutate(x => x.DrawText(text, font, outerColour, locationBack)
                                .DrawText(text, font, mainColour, location));
