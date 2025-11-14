@@ -1,11 +1,12 @@
 ﻿using ImageGetter.Extensions;
 using ImageGetter.Models;
+using ImageGetter.Services;
 
 namespace ImageGetter
 {
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {            
             var builder = WebApplication.CreateBuilder(args);
 
@@ -37,7 +38,9 @@ namespace ImageGetter
                 });
                 options.AddDebug().SetMinimumLevel(LogLevel.Debug);
             });            
-            builder.Services.AddSingleton<Services.IImageService, Services.ImageService>();
+            builder.Services.AddSingleton<IImageRetrievalService, ImageRetrievalService>();
+            builder.Services.AddTransient<IImageService, ImageService>();
+            builder.Services.AddMemoryCache();
             builder.Services.Configure<Settings>(settings =>
             {
                 settings.ImagePassword = Environment.GetEnvironmentVariable("IMAGEGETTER_PASSWORD");                
@@ -53,7 +56,10 @@ namespace ImageGetter
             ImageMetadataExtensions.Initialize(serviceProvider);
 
             var app = builder.Build();
-            
+
+            //Cache an image on startup to speed up the first request
+            await app.Services.GetRequiredService<IImageService>().CacheImageAsync();
+
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {

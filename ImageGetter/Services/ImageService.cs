@@ -1,120 +1,318 @@
-﻿using ImageGetter.Extensions;
+﻿using ImageGetter.Controllers;
 using ImageGetter.Models;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
-using Renci.SshNet;
+using SixLabors.Fonts;
 using SixLabors.ImageSharp;
-using System.Globalization;
+using SixLabors.ImageSharp.Drawing;
+using SixLabors.ImageSharp.Drawing.Processing;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
+using System.Text.Json;
 using System.Web;
 
 namespace ImageGetter.Services
 {
-    internal class ImageService : IImageService
+    public class ImageService : IImageService
     {
-        private Settings _settings;
-        private List<Media> _media;
-        private readonly ILogger<ImageService> _logger;
+        private readonly IImageRetrievalService _imageService;
+        private readonly ILogger<ImageController> _logger;
+        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly Settings _settings;
+        private IMemoryCache _memoryCache;
 
-        public ImageService(IOptions<Settings> settings, ILogger<ImageService> logger)
+        public ImageService(IImageRetrievalService imageService, IHttpClientFactory httpClientFactory, IOptions<Settings> settings, ILogger<ImageController> logger, IMemoryCache memoryCache)
         {
-            _settings = settings.Value;
+            _imageService = imageService;
             _logger = logger;
+            _httpClientFactory = httpClientFactory;
+            _settings = settings.Value;
+            _memoryCache = memoryCache;
         }
 
-        public IEnumerable<Media> GetImages()
+        public async Task CacheImageAsync()
         {
-            try
-            {
-                using SftpClient client = new SftpClient(new PasswordConnectionInfo(_settings.Host, _settings.Username, _settings.ImagePassword));
-                client.Connect();
-
-                _media = new List<Media>();
-
-                foreach (var path in _settings.Paths)
-                {
-                    if (client.Exists(path))
-                    {
-                        _media.AddRange(client.ListDirectory(path)
-                                             .Where(i => !i.IsDirectory && i.FullName.EndsWith("jpg"))
-                                             .Select(s => new Media { Filename = s.FullName, Id = HttpUtility.UrlEncode(s.FullName) }));
-                    }
-                }
-
-                client.Disconnect();
-
-                _logger.LogInformation($"Found {_media.Count} images");
-                return _media;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, $"Failed to get images from {_settings.Host}");
-                throw;
-            }
+            var newImage = await RetrieveImageAsync();
+            _memoryCache.Set("CachedRandomImage", newImage, TimeSpan.FromDays(1));
         }
 
-        public MediaFile? GetImage(string path)
+        public async Task<Image?> GetCachedImageAsync()
         {
-            using SftpClient client = new SftpClient(new PasswordConnectionInfo(_settings.Host, _settings.Username, _settings.ImagePassword));
-            client.Connect();
-            
-            if (!client.Exists(path))
+            if (_memoryCache.TryGetValue("CachedRandomImage", out Image image) == true)
             {
-                _logger.LogError($"Failed to find {path}");
+                //Kick off a background cache refresh for the next request
+                _ = Task.Run(() => CacheImageAsync());
+
+                return image;
+            }
+
+            //Cache miss - get a new image
+            return await RetrieveImageAsync();
+        }
+
+        public async Task<Image?> RetrieveImageAsync(string? filename = null, int? width = null, int? height = null, bool debug = false)
+        {
+            if (string.IsNullOrWhiteSpace(filename))
+            {
+                var media = _imageService.GetRandomImage();
+                filename = media.Filename;
+
+                _logger.LogInformation($"{media.Filename} -> {HttpUtility.UrlEncode(media.Filename)}");
+            }
+            else
+                filename = HttpUtility.UrlDecode(filename);
+
+            var file = _imageService.GetImage(filename);
+            if (file == null)
+            {
+                _logger.LogError($"Failed to find image {filename}");
                 return null;
             }
 
-            _logger.LogInformation($"Downloading {path}");
+            var image = await Image.LoadAsync(new MemoryStream(file.Data));
+            image.Mutate(x => x.AutoOrient());
+            image = await ResizeImageAsync(width, height, debug, file, image);
 
-            using var memoryStream = new MemoryStream();
-            client.DownloadFile(path, memoryStream);
+            var landscape = file.IsLandscape;
+            _logger.LogDebug($"{(landscape ? "Landscape mode" : "Portrate mode")} - Orientation:{file.Orientation} - Dimensions:{image.Width}x{image.Height}");
 
-            var image = Image.Load(memoryStream.ToArray());
+            var createdDate = file.CreatedDate.ToString("dd/MMM/yyyy");
+            var location = file.Location;
+            var caption = $"{file.ParentFolderName} @ {createdDate}\n{location}";
 
-            DateTime createdDate = DateTime.MinValue;
-            string location = "";
-            ushort orientation = 0;
+            if (debug)
+                caption += $"\n{filename}";
 
-            //image.Metadata.DebugExif();
+            AddText(caption, image, 0, landscape, debug);
 
-            var exifProfile = image.Metadata.ExifProfile;
-            if (exifProfile != null)
+            return image;
+        }
+
+        private async Task<Image> ResizeImageAsync(int? width, int? height, bool debug, MediaFile file, Image image)
+        {
+            if (width == null && height == null)
+                return image;
+
+            _logger.LogDebug($"Resizing image to {width}x{height} from {image.Width}x{image.Height}");
+
+            PointF centerCoordinates = PointF.Empty;
+
+            var ignoreX = false;
+            var ignoreY = false;
+
+            if (width > image.Width)
             {
-                if (exifProfile.TryGetValue(SixLabors.ImageSharp.Metadata.Profiles.Exif.ExifTag.DateTimeOriginal, out var exifValue))
+                ignoreX = true;
+                width = image.Width;
+            }
+
+            if (height > image.Height)
+            {
+                ignoreY = true;
+                height = image.Height;
+            }
+
+            //Resolution: 1280 x 800 pixels => 3200 x 2000 => 3200/2000
+            var imageRatio = (float)image.Width / image.Height;
+            var targetRatio = (float)(width ?? image.Width) / (height ?? image.Height);
+            var ratioDiff = Math.Abs(imageRatio - targetRatio);
+            var useImageCenter = ratioDiff > _settings.ImageRatioTolerance;
+
+            _logger.LogInformation($"Image ratio is {imageRatio}, Target ratio is {targetRatio}. Diff: {ratioDiff}");
+
+            if (useImageCenter)
+            {
+                IEnumerable<Face>? faces = await FindFaces(file);
+                var bestFaces = faces?.Where(w => w.Confidence > _settings.MinConfidence)
+                                        .OrderByDescending(o => o.Confidence);
+
+                var x = (image.Width / 2) - (width.Value / 2);
+                var y = (image.Height / 2) - (height.Value / 2);
+
+                if (faces == null || faces.Count() == 0)
                 {
-                    var dateString = exifValue?.GetValue() as string;
-                    if (!string.IsNullOrEmpty(dateString))
+                    //Can we do some clever resizing
+                    if (image.Width > width && image.Height > height)
                     {
-                        if (DateTime.TryParse(dateString, out DateTime parsedDate))
-                            createdDate = parsedDate;
-                        if (DateTime.TryParseExact(dateString, "yyyy:MM:dd HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out parsedDate))
-                            createdDate = parsedDate;
+                        x = 0;
+                        width = image.Width;
+
+                        var newHeight = (int)(image.Width / targetRatio);
+                        y -= (newHeight - (height ?? image.Height)) / 2;
+                        height = newHeight;
                     }
                 }
 
-                orientation = image.Metadata.GetOrientation() ?? 0;
-                location = image.Metadata.GetLocationStringAsync().GetAwaiter().GetResult() ?? "";
+                //Default crop
+                var cropRect = new Rectangle(x, y, width.Value, height.Value);
+
+                //Did we find a face with reasonable confidence?
+                if (bestFaces?.Any() == true)
+                {
+                    //Check for good faces
+                    var avgFaces = bestFaces.Where(w => w.Confidence > _settings.MinAvgConfidence && w.Height > _settings.MinAvgHeight);
+
+                    //Average out the best faces
+                    if (avgFaces.Any())
+                    {
+                        x = 0; y = 0;
+
+                        foreach (var face in avgFaces)
+                        {
+                            _logger.LogDebug($"Averaging Face found at {face.X},{face.Y} size {face.Width}x{face.Height} with {face.Confidence} Confidence");
+                            x += face.X + (face.Width / 2);
+                            y += face.Y + (face.Height / 2);
+                        }
+
+                        centerCoordinates = new PointF(x / avgFaces.Count(), y / avgFaces.Count());
+                    }
+                    else
+                    {
+                        //Just focus on the best
+                        var face = bestFaces.Where(w => w.Height > _settings.MinHeight)
+                                            .OrderByDescending(o => o.Confidence).FirstOrDefault();
+
+                        if (face != null)
+                        {
+                            _logger.LogDebug($"Face found at {face.X},{face.Y} size {face.Width}x{face.Height} with {face.Confidence} Confidence");
+                            centerCoordinates = new PointF(face.X + (face.Width / 2), face.Y + (face.Height / 2));
+                        }
+                        else
+                            _logger.LogDebug($"No faces are tall enough. Min Face Height: {bestFaces.Min(m => m.Height)}. MinHeight: {_settings.MinHeight}");
+                    }
+
+                    x = (int)centerCoordinates.X - (width.Value / 2);
+                    if (ignoreX || x < 0)
+                        x = 0;
+
+                    y = (int)centerCoordinates.Y - (height.Value! / 2);
+                    if (ignoreY || y < 0)
+                        y = 0;
+
+                    if (x + width.Value > image.Width)
+                        x = image.Width - width.Value;
+
+                    if (y + height.Value > image.Height)
+                        y = image.Height - height.Value;
+
+                    cropRect = new Rectangle((int)x, (int)y, width.Value, height.Value);
+                }
+                else
+                    _logger.LogDebug($"None of the faces look good :-(... Max Confidence: {faces?.Max(m => m.Confidence)}");
+
+                _logger.LogDebug($"Resizing image: {image.Width}x{image.Height} with Center {centerCoordinates}");
+
+                if (debug == true)
+                {
+                    var cutRect = new RectangularPolygon(cropRect);
+                    image.Mutate(ctx => ctx.Draw(Color.Orange, 6f, cutRect));
+
+                    if (faces != null)
+                    {
+                        foreach (var face in faces)
+                        {
+                            var faceRect = new RectangularPolygon(face.X, face.Y, face.Width, face.Height);
+                            image.Mutate(ctx => ctx.Draw(Color.Yellow, 6f, faceRect));
+                        }
+                    }
+
+                    if (centerCoordinates != PointF.Empty)
+                    {
+                        var centerRect = new RectangularPolygon(centerCoordinates.X - 15, centerCoordinates.Y - 15, 30, 30);
+                        image.Mutate(ctx => ctx.Fill(Color.OrangeRed, centerRect));
+                    }
+                }
+                else
+                    image.Mutate(x => x.Crop(cropRect));
+            }
+            else
+                _logger.LogInformation($"Not Resizing as the image ratio is {ratioDiff}");
+
+            return image;
+        }
+
+        private async Task<IEnumerable<Face>?> FindFaces(MediaFile file)
+        {
+            var http = _httpClientFactory.CreateClient();
+            var content = new MultipartFormDataContent();
+            var fileContent = new StreamContent(new MemoryStream(file.Data));
+
+            content.Add(fileContent, "file", "fileName");
+            var faceResponse = await http.PostAsync(_settings.FaceApi, content);
+
+            string faceString = "";
+            Face[]? faces = null;
+
+            try
+            {
+                faceString = await faceResponse.Content.ReadAsStringAsync();
+                faces = JsonSerializer.Deserialize<Face[]>(faceString);
+
+                _logger.LogInformation($"Discovered {faces.Length} faces");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Failed to deserialize FindFace response: {faceString}");
+                return null;
             }
 
-            return new MediaFile
+            if (faces.Length == 0 || faces[0]?.X == 0)
             {
-                Filename = path,
-                Data = memoryStream.ToArray(),
-                Width = image.Width,
-                Height = image.Height,
-                CreatedDate = createdDate,
-                Location = location,
-                Orientation = orientation
-            };
+                _logger.LogError($"Unexpected FindFace response: {faceString}");
+                return null;
+            }
+
+            return faces;
         }
 
-        public Media GetRandomImage()
+        private void AddText(string text, Image image, int yOffset, bool landscape, bool debug)
         {
-            if (_media == null || !_media.Any())
-                GetImages();
+            const float TEXTPADDING = 18f;
 
-            var random = new Random();
-            var index = random.Next(0, _media.Count - 1);
+            float textFontSize = 150f;
 
-            return _media[index];
+            FontCollection fontCollection = new();
+            fontCollection.Add("Fonts/OpenSans-VariableFont_wdth,wght.ttf");
+
+            if (!fontCollection.TryGet("Open Sans", out FontFamily fontFamily))
+                throw new Exception($"Couldn't find the font");
+
+            var font = fontFamily.CreateFont(textFontSize, FontStyle.Regular);
+
+            var options = new TextOptions(font)
+            {
+                Dpi = 72,
+                KerningMode = KerningMode.Auto,
+                TextDirection = TextDirection.LeftToRight
+            };
+
+            var rect = TextMeasurer.MeasureSize(text, options);
+            var location = new PointF(image.Width - rect.Width - TEXTPADDING, image.Height - rect.Height - TEXTPADDING);
+
+            location = new PointF(30, 30 + yOffset);
+            var locationBack = new PointF(40, 40 + yOffset);
+            var textRect = new RectangleF(location.X, location.Y, Math.Min(rect.Width, image.Width) - location.X, rect.Height - location.Y);
+
+            if (debug)
+                image.Mutate(ctx => ctx.Draw(Color.Coral, 6f, textRect));
+
+            //Figure out the avg background colour
+            var croppedImageResizedToOnePixel = image.Clone(
+                img => img.Crop((Rectangle)textRect)
+                          .Resize(new Size(1, 1))
+             );
+
+            var averageColor = croppedImageResizedToOnePixel.CloneAs<Rgba32>()[0, 0];
+            var luminance = (0.299 * averageColor.R + 0.587 * averageColor.G + 0.114 * averageColor.B) / 255;
+
+            var mainColour = luminance > 0.5 ? Color.Black : Color.White;
+            var outerColour = luminance > 0.5 ? Color.White : Color.Black;
+
+            _logger.LogInformation($"Found luminance: {luminance} for text: {text}");
+
+            image.Mutate(x => x.DrawText(text, font, outerColour, locationBack)
+                               .DrawText(text, font, mainColour, location));
         }
+
     }
 }

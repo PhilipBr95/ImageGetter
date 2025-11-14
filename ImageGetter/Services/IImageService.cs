@@ -1,12 +1,11 @@
-﻿
-using ImageGetter.Models;
+﻿using SixLabors.ImageSharp;
 
 namespace ImageGetter.Services
 {
     public interface IImageService
     {
-        MediaFile? GetImage(string path);
-        IEnumerable<Media> GetImages();
-        Media GetRandomImage();
+        Task CacheImageAsync();
+        Task<Image?> GetCachedImageAsync();
+        Task<Image?> RetrieveImageAsync(string? filename = null, int? width = null, int? height = null, bool debug = false);
     }
 }
