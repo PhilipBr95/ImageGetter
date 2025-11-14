@@ -34,6 +34,8 @@ namespace ImageGetter.Services
         {
             var newImage = await RetrieveImageAsync();
             _memoryCache.Set("CachedRandomImage", newImage, TimeSpan.FromDays(1));
+
+            _logger.LogInformation("Cached an image");
         }
 
         public async Task<Image?> GetCachedImageAsync()
@@ -45,6 +47,8 @@ namespace ImageGetter.Services
 
                 return image;
             }
+
+            _logger.LogInformation("Cache miss :-(");
 
             //Cache miss - get a new image
             return await RetrieveImageAsync();

@@ -54,7 +54,11 @@ namespace ImageGetter.Controllers
         {
             Image? image;
             if (width == null && height == null && string.IsNullOrWhiteSpace(filename))
+            {
+                _logger.LogInformation("GetImage: No parameters specified, returning cached image");
+
                 image = await _imageService.GetCachedImageAsync();
+            }
             else
             {
                 //Can't figure out optional params in routing :-(
