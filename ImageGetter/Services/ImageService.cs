@@ -32,31 +32,31 @@ namespace ImageGetter.Services
 
         private static bool _cachingInProgress = false;
 
-        public async Task CacheImageAsync()
+        public async Task CacheImageAsync(int? width = null, int? height = null)
         {
             if (_cachingInProgress)
                 return;
 
             _cachingInProgress = true;
 
-            var newImage = await RetrieveImageAsync();
+            var newImage = await RetrieveImageAsync(null, width, height);
             _memoryCache.Set("CachedRandomImage", newImage, TimeSpan.FromDays(1));
 
             _logger.LogInformation("Cached an image");
             _cachingInProgress = false;
         }
 
-        public async Task<Image?> GetCachedImageAsync()
+        public async Task<Image?> GetCachedImageAsync(int? width = null, int? height = null)
         {
             if (_memoryCache.TryGetValue("CachedRandomImage", out Image image) == true)
             {
                 //Kick off a background cache refresh for the next request
-                _ = Task.Run(() => CacheImageAsync());
+                _ = Task.Run(() => CacheImageAsync(width, height));
 
                 return image;
             }
 
-            _logger.LogInformation("Cache miss :-(");
+            _logger.LogWarning("Cache miss :-(");
 
             //Cache miss - get a new image
             return await RetrieveImageAsync();

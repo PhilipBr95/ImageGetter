@@ -53,11 +53,11 @@ namespace ImageGetter.Controllers
         public async Task<IActionResult> GetImage(string? filename = null, int? width = null, int? height = null)
         {
             Image? image;
-            if (width == null && height == null && string.IsNullOrWhiteSpace(filename))
+            if (string.IsNullOrWhiteSpace(filename))
             {
                 _logger.LogInformation("GetImage: No parameters specified, returning cached image");
 
-                image = await _imageService.GetCachedImageAsync();
+                image = await _imageService.GetCachedImageAsync(width, height );
             }
             else
             {
