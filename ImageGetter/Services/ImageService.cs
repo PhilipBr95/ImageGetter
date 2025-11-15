@@ -30,12 +30,20 @@ namespace ImageGetter.Services
             _memoryCache = memoryCache;
         }
 
+        private static bool _cachingInProgress = false;
+
         public async Task CacheImageAsync()
         {
+            if (_cachingInProgress)
+                return;
+
+            _cachingInProgress = true;
+
             var newImage = await RetrieveImageAsync();
             _memoryCache.Set("CachedRandomImage", newImage, TimeSpan.FromDays(1));
 
             _logger.LogInformation("Cached an image");
+            _cachingInProgress = false;
         }
 
         public async Task<Image?> GetCachedImageAsync()
@@ -202,7 +210,12 @@ namespace ImageGetter.Services
                     cropRect = new Rectangle((int)x, (int)y, width.Value, height.Value);
                 }
                 else
+                {
                     _logger.LogDebug($"None of the faces look good :-(... Max Confidence: {faces?.Max(m => m.Confidence)}");
+
+                    //Default to center crop
+                    centerCoordinates = new PointF(image.Width / 2, image.Height / 2);
+                }
 
                 _logger.LogDebug($"Resizing image: {image.Width}x{image.Height} with Center {centerCoordinates}");
 
