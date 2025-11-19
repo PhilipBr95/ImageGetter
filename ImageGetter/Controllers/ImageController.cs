@@ -40,20 +40,20 @@ namespace ImageGetter.Controllers
         [HttpGet("/image/{filename:alpha?}")]
         public async Task<IActionResult> GetImage(string filename)
         {
-            return await GetImage(filename, null, null);
+            return await GetImage(null, null, filename);
         }
 
         [HttpGet("/image/{width:int}/{height:int}")]
         public async Task<IActionResult> GetImage(int width, int height)
         {
-            return await GetImage(null, width, height);
+            return await GetImage(width, height, null);
         }
 
-        [HttpGet("/image/{filename}/{width}/{height}")]
-        public async Task<IActionResult> GetImage(string? filename = null, int? width = null, int? height = null)
+        [HttpGet("/image/{width}/{height}/{filename}")]
+        public async Task<IActionResult> GetImage(int? width = null, int? height = null, string? filename = null)
         {
             Image? image;
-            if (string.IsNullOrWhiteSpace(filename))
+            if (string.IsNullOrWhiteSpace(filename) || filename == "random.jpg")
             {
                 _logger.LogInformation("GetImage: No parameters specified, returning cached image");
 
