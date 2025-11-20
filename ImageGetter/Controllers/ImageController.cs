@@ -57,7 +57,7 @@ namespace ImageGetter.Controllers
             {
                 _logger.LogInformation("GetImage: No parameters specified, returning cached image");
 
-                image = await _imageService.GetCachedImageAsync(width, height );
+                image = await _imageService.GetCachedImageAsync(width, height);
             }
             else
             {

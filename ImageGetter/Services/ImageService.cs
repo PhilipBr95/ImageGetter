@@ -107,7 +107,8 @@ namespace ImageGetter.Services
 
             _logger.LogDebug($"Resizing image to {width}x{height} from {image.Width}x{image.Height}");
 
-            PointF centerCoordinates = PointF.Empty;
+            //Default to center crop
+            PointF centerCoordinates = new PointF(image.Width / 2, image.Height / 2);
 
             var ignoreX = false;
             var ignoreY = false;
@@ -210,12 +211,7 @@ namespace ImageGetter.Services
                     cropRect = new Rectangle((int)x, (int)y, width.Value, height.Value);
                 }
                 else
-                {
                     _logger.LogDebug($"None of the faces look good :-(... Max Confidence: {faces?.Max(m => m.Confidence)}");
-
-                    //Default to center crop
-                    centerCoordinates = new PointF(image.Width / 2, image.Height / 2);
-                }
 
                 _logger.LogDebug($"Resizing image: {image.Width}x{image.Height} with Center {centerCoordinates}");
 
@@ -232,8 +228,7 @@ namespace ImageGetter.Services
                             image.Mutate(ctx => ctx.Draw(Color.Yellow, 6f, faceRect));
                         }
                     }
-
-                    if (centerCoordinates != PointF.Empty)
+                    else                   
                     {
                         var centerRect = new RectangularPolygon(centerCoordinates.X - 15, centerCoordinates.Y - 15, 30, 30);
                         image.Mutate(ctx => ctx.Fill(Color.OrangeRed, centerRect));
