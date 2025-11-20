@@ -40,20 +40,21 @@ namespace ImageGetter.Services
             _cachingInProgress = true;
 
             var newImage = await RetrieveImageAsync(null, width, height);
-            _memoryCache.Set("CachedRandomImage", newImage, TimeSpan.FromDays(1));
+            _memoryCache.Set<ImageWithMeta>("CachedRandomImage", newImage, TimeSpan.FromDays(1));
 
-            _logger.LogInformation("Cached an image");
+            _logger.LogInformation($"Cached an image: {newImage.Filename}");
+
             _cachingInProgress = false;
         }
 
-        public async Task<Image?> GetCachedImageAsync(int? width = null, int? height = null)
+        public async Task<ImageWithMeta?> GetCachedImageAsync(int? width = null, int? height = null)
         {
-            if (_memoryCache.TryGetValue("CachedRandomImage", out Image image) == true)
+            if (_memoryCache.TryGetValue("CachedRandomImage", out ImageWithMeta imageWithMeta) == true)
             {
                 //Kick off a background cache refresh for the next request
                 _ = Task.Run(() => CacheImageAsync(width, height));
 
-                return image;
+                return imageWithMeta;
             }
 
             _logger.LogWarning("Cache miss :-(");
@@ -62,7 +63,7 @@ namespace ImageGetter.Services
             return await RetrieveImageAsync();
         }
 
-        public async Task<Image?> RetrieveImageAsync(string? filename = null, int? width = null, int? height = null, bool debug = false)
+        public async Task<ImageWithMeta?> RetrieveImageAsync(string? filename = null, int? width = null, int? height = null, bool debug = false)
         {
             if (string.IsNullOrWhiteSpace(filename))
             {
@@ -97,7 +98,7 @@ namespace ImageGetter.Services
 
             AddText(caption, image, 0, landscape, debug);
 
-            return image;
+            return new ImageWithMeta(image, filename);
         }
 
         private async Task<Image> ResizeImageAsync(int? width, int? height, bool debug, MediaFile file, Image image)

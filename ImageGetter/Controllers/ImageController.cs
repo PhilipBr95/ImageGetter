@@ -1,4 +1,5 @@
-﻿using ImageGetter.Services;
+﻿using ImageGetter.Models;
+using ImageGetter.Services;
 using Microsoft.AspNetCore.Mvc;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
@@ -52,7 +53,7 @@ namespace ImageGetter.Controllers
         [HttpGet("/image/{width}/{height}/{filename}")]
         public async Task<IActionResult> GetImage(int? width = null, int? height = null, string? filename = null)
         {
-            Image? image;
+            ImageWithMeta? image;
             if (string.IsNullOrWhiteSpace(filename) || filename == "random.jpg")
             {
                 _logger.LogInformation("GetImage: No parameters specified, returning cached image");
@@ -72,7 +73,7 @@ namespace ImageGetter.Controllers
                 return NotFound(filename);
 
             MemoryStream ms = new();
-            image.Save(ms, new JpegEncoder());
+            image.Image.Save(ms, new JpegEncoder());
             return File(ms.ToArray(), "image/jpeg");
         }
     }
