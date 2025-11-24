@@ -101,7 +101,7 @@ namespace ImageGetter.Services
 
             var createdDate = file.CreatedDate.ToString("dd/MMM/yyyy");
             var location = file.Location;
-            var caption = $"{file.ParentFolderName} @ {createdDate}\n{location}";
+            var caption = $"{file.ParentFolderName}{(file.CreatedDate.Year > 1900 ? $" @ {createdDate}" : "")}\n{location}";
 
             if (debug)
                 caption += $"\n{filename}";
@@ -300,21 +300,33 @@ namespace ImageGetter.Services
             if (!fontCollection.TryGet("Open Sans", out FontFamily fontFamily))
                 throw new Exception($"Couldn't find the font");
 
-            var font = fontFamily.CreateFont(textFontSize, FontStyle.Regular);
+            var sizing = true;
+            FontRectangle fontRectangle = new();
+            Font font = fontFamily.CreateFont(textFontSize, FontStyle.Regular);
 
-            var options = new TextOptions(font)
+            while (sizing)
             {
-                Dpi = 72,
-                KerningMode = KerningMode.Auto,
-                TextDirection = TextDirection.LeftToRight
-            };
+                font = fontFamily.CreateFont(textFontSize, FontStyle.Regular);
 
-            var rect = TextMeasurer.MeasureSize(text, options);
-            var location = new PointF(image.Width - rect.Width - TEXTPADDING, image.Height - rect.Height - TEXTPADDING);
+                var options = new TextOptions(font)
+                {
+                    Dpi = 72,
+                    KerningMode = KerningMode.Auto,
+                    TextDirection = TextDirection.LeftToRight
+                };
+                
+                fontRectangle = TextMeasurer.MeasureSize(text, options);
+                if (fontRectangle.Width < (image.Width - 50))
+                    sizing = false;
+
+                textFontSize -= 5;
+            }
+
+            var location = new PointF(image.Width - fontRectangle.Width - TEXTPADDING, image.Height - fontRectangle.Height - TEXTPADDING);
 
             location = new PointF(30, 30 + yOffset);
             var locationBack = new PointF(40, 40 + yOffset);
-            var textRect = new RectangleF(location.X, location.Y, Math.Min(rect.Width, image.Width) - location.X, rect.Height - location.Y);
+            var textRect = new RectangleF(location.X, location.Y, Math.Min(fontRectangle.Width, image.Width) - location.X, fontRectangle.Height - location.Y);
 
             if (debug)
                 image.Mutate(ctx => ctx.Draw(Color.Coral, 6f, textRect));
