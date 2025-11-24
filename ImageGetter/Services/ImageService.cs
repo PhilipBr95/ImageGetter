@@ -35,14 +35,24 @@ namespace ImageGetter.Services
         public async Task CacheImageAsync(int? width = null, int? height = null)
         {
             if (_cachingInProgress)
+            {
+                _logger.LogInformation("Caching already in progress, skipping...");
                 return;
+            }
 
             _cachingInProgress = true;
 
-            var newImage = await RetrieveImageAsync(null, width, height);
-            _memoryCache.Set<ImageWithMeta>("CachedRandomImage", newImage, TimeSpan.FromDays(1));
+            try
+            {
+                var newImage = await RetrieveImageAsync(null, width, height);
+                _memoryCache.Set<ImageWithMeta>("CachedRandomImage", newImage, TimeSpan.FromDays(1));
 
-            _logger.LogInformation($"Cached an image: {newImage.Filename}");
+                _logger.LogInformation($"Cached an image: {newImage.Filename}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to cache image");
+            }
 
             _cachingInProgress = false;
         }
