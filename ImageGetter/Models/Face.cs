@@ -2,7 +2,7 @@
 
 namespace ImageGetter.Models
 {
-    [DebuggerDisplay("Confidence = {Confidence}, Width = {Width}, Height = {Height}")]
+    [DebuggerDisplay("ConfidenceM = {ConfidenceMultiplyer}: Confidence = {Confidence}, Width = {Width}, Height = {Height}")]
     class Face
     {
         public int X { get; set; }
@@ -10,5 +10,6 @@ namespace ImageGetter.Models
         public int Width { get; set; }
         public int Height { get; set; }
         public double Confidence { get; set; }
+        public double ConfidenceMultiplyer => Confidence * Width * Height;
     }
 }

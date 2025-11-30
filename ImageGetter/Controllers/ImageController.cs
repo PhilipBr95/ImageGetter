@@ -53,21 +53,19 @@ namespace ImageGetter.Controllers
         [HttpGet("/image/{width}/{height}/{filename}")]
         public async Task<IActionResult> GetImage(int? width = null, int? height = null, string? filename = null)
         {
+            //Can't figure out optional params in routing :-(
+            _ = bool.TryParse(Request.Query.Where(f => f.Key.Equals("debug", StringComparison.CurrentCultureIgnoreCase))
+                                           .FirstOrDefault().Value, out bool debug);
+
             ImageWithMeta? image;
-            if (string.IsNullOrWhiteSpace(filename) || filename == "random.jpg")
+            if (filename == "random.jpg")
             {
                 _logger.LogInformation("GetImage: No parameters specified, returning cached image");
 
-                image = await _imageService.GetCachedImageAsync(width, height);
+                image = await _imageService.GetCachedImageAsync(width, height, debug);
             }
             else
-            {
-                //Can't figure out optional params in routing :-(
-                _ = bool.TryParse(Request.Query.Where(f => f.Key.Equals("debug", StringComparison.CurrentCultureIgnoreCase))
-                                               .FirstOrDefault().Value, out bool debug);
-
                 image = await _imageService.RetrieveImageAsync(filename, width, height, debug);
-            }
 
             if(image == null)
                 return NotFound(filename);

@@ -32,7 +32,7 @@ namespace ImageGetter.Services
 
         private static bool _cachingInProgress = false;
 
-        public async Task CacheImageAsync(int? width = null, int? height = null)
+        public async Task CacheImageAsync(int? width = null, int? height = null, bool debug = false)
         {
             if (_cachingInProgress)
             {
@@ -44,7 +44,7 @@ namespace ImageGetter.Services
 
             try
             {
-                var newImage = await RetrieveImageAsync(null, width, height);
+                var newImage = await RetrieveImageAsync(null, width, height, debug);
                 _memoryCache.Set<ImageWithMeta>("CachedRandomImage", newImage, TimeSpan.FromDays(1));
 
                 _logger.LogInformation($"Cached an image: {newImage.Filename}");
@@ -57,12 +57,12 @@ namespace ImageGetter.Services
             _cachingInProgress = false;
         }
 
-        public async Task<ImageWithMeta?> GetCachedImageAsync(int? width = null, int? height = null)
+        public async Task<ImageWithMeta?> GetCachedImageAsync(int? width = null, int? height = null, bool debug = false)
         {
             if (_memoryCache.TryGetValue("CachedRandomImage", out ImageWithMeta imageWithMeta) == true)
             {
                 //Kick off a background cache refresh for the next request
-                _ = Task.Run(() => CacheImageAsync(width, height));
+                _ = Task.Run(() => CacheImageAsync(width, height, debug));
 
                 return imageWithMeta;
             }
@@ -99,8 +99,9 @@ namespace ImageGetter.Services
             var landscape = file.IsLandscape;
             _logger.LogDebug($"{(landscape ? "Landscape mode" : "Portrate mode")} - Orientation:{file.Orientation} - Dimensions:{image.Width}x{image.Height}");
 
+            var dd = FormatLocation("Hello world, other world, my world, their world");
             var createdDate = file.CreatedDate.ToString("dd/MMM/yyyy");
-            var location = file.Location;
+            var location = FormatLocation(file.Location);
             var caption = $"{file.ParentFolderName}{(file.CreatedDate.Year > 1900 ? $" @ {createdDate}" : "")}\n{location}";
 
             if (debug)
@@ -109,6 +110,34 @@ namespace ImageGetter.Services
             AddText(caption, image, 0, landscape, debug);
 
             return new ImageWithMeta(image, filename);
+        }
+
+        private static string FormatLocation(string location)
+        {
+            if (location.Length < 40)
+                return location;
+
+            var parts = location.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                                .Select(s => s.Trim())
+                                .ToArray();
+            
+            var maxLength = location.Length / 2;
+            var formattedLocation = "";
+            
+            for (int i = parts.Length - 1; i >= 0; i--)
+            {
+                if ((formattedLocation + parts[i]).Length > maxLength)
+                {
+                    formattedLocation = string.Join(", ", parts.Where((a, b) => b <= i)) + ",\n" + formattedLocation;
+                    break;
+                }
+                if (formattedLocation.Length == 0)
+                    formattedLocation = parts[i];
+                else
+                    formattedLocation = parts[i] + ", " + formattedLocation;
+            }
+
+            return formattedLocation;
         }
 
         private async Task<Image> ResizeImageAsync(int? width, int? height, bool debug, MediaFile file, Image image)
@@ -147,8 +176,8 @@ namespace ImageGetter.Services
             if (useImageCenter)
             {
                 IEnumerable<Face>? faces = await FindFaces(file);
-                var bestFaces = faces?.Where(w => w.Confidence > _settings.MinConfidence)
-                                        .OrderByDescending(o => o.Confidence);
+                var bestFaces = faces?.Where(w => w.ConfidenceMultiplyer > _settings.MinConfidence)
+                                        .OrderByDescending(o => o.ConfidenceMultiplyer);
 
                 var x = (image.Width / 2) - (width.Value / 2);
                 var y = (image.Height / 2) - (height.Value / 2);
@@ -174,7 +203,11 @@ namespace ImageGetter.Services
                 if (bestFaces?.Any() == true)
                 {
                     //Check for good faces
-                    var avgFaces = bestFaces.Where(w => w.Confidence > _settings.MinAvgConfidence && w.Height > _settings.MinAvgHeight);
+                    var avgFaceMultiplyer = bestFaces.Where(w => w.ConfidenceMultiplyer > _settings.MinAvgConfidence)
+                                                     .Select(s => s.ConfidenceMultiplyer)
+                                                     .DefaultIfEmpty(double.MaxValue)
+                                                     .Average();
+                    var avgFaces = bestFaces.Where(w => w.ConfidenceMultiplyer > avgFaceMultiplyer);
 
                     //Average out the best faces
                     if (avgFaces.Any())
@@ -183,7 +216,7 @@ namespace ImageGetter.Services
 
                         foreach (var face in avgFaces)
                         {
-                            _logger.LogDebug($"Averaging Face found at {face.X},{face.Y} size {face.Width}x{face.Height} with {face.Confidence} Confidence");
+                            _logger.LogDebug($"Averaging Face found with {face.Confidence} Confidence, {face.ConfidenceMultiplyer}");
                             x += face.X + (face.Width / 2);
                             y += face.Y + (face.Height / 2);
                         }
@@ -219,15 +252,67 @@ namespace ImageGetter.Services
                     if (y + height.Value > image.Height)
                         y = image.Height - height.Value;
 
-                    cropRect = new Rectangle((int)x, (int)y, width.Value, height.Value);
+                    if((x > 0 || y > 0) && (width.Value < image.Width || height.Value < image.Height))
+                    {
+                        int newX = x;
+                        int newY = y;
+
+                        //Expand it...
+                        if(x > 0)
+                        {
+                            newX = 0;
+                            newY = y - (x / (int)targetRatio);
+
+                            if(newY < 0 || newY > image.Height)
+                            {
+                                //Not good
+                                newX = x - (y * (int)targetRatio);
+                                newY = 0;
+
+                                if(newX < 0 || (x + newX > image.Width))
+                                {
+                                    //Not good - Abort
+                                    newX = x;
+                                    newY = y;
+                                }
+                            }
+                        }
+
+                        if(newX != x || newY != y)
+                        {
+                            if (debug)
+                            {
+                                cropRect = new Rectangle((int)x, (int)y, width.Value, height.Value);
+
+                                var cutRect = new RectangularPolygon(cropRect);
+                                image.Mutate(ctx => ctx.Draw(Color.Blue, 6f, cutRect));
+                            }
+
+                            var diffX = x - newX;
+                            var diffY = y - newY;
+
+                            x = newX;
+                            y = newY;
+
+                            //x -= (int)(diffX / 2);
+                            //y -= (int)(diffY / 2);
+
+                            width = (int)(width.Value + (diffX * 2));
+                            height = (int)(height.Value + (diffY * 2));
+                        }
+
+                        cropRect = new Rectangle((int)x, (int)y, width.Value, height.Value);
+                    }
+                    else
+                        cropRect = new Rectangle((int)x, (int)y, width.Value, height.Value);
                 }
                 else
                     _logger.LogDebug($"None of the faces look good :-(... Max Confidence: {faces?.Max(m => m.Confidence)}");
 
                 _logger.LogDebug($"Resizing image: {image.Width}x{image.Height} with Center {centerCoordinates}");
 
-                if (debug == true)
-                {
+                if (debug)
+                {                    
                     var cutRect = new RectangularPolygon(cropRect);
                     image.Mutate(ctx => ctx.Draw(Color.Orange, 6f, cutRect));
 
@@ -235,15 +320,17 @@ namespace ImageGetter.Services
                     {
                         foreach (var face in faces)
                         {
+                            (Font font, FontRectangle fontRectangle) = GetFont("random", image.Width, face.Width / 2);
                             var faceRect = new RectangularPolygon(face.X, face.Y, face.Width, face.Height);
-                            image.Mutate(ctx => ctx.Draw(Color.Yellow, 6f, faceRect));
+
+                            image.Mutate(ctx => ctx.Draw(Color.Yellow, 6f, faceRect)
+                                                   .DrawText($"{face.Confidence:0.0}", font, Color.Red, new PointF(face.X, face.Y)));
                         }
                     }
-                    else                   
-                    {
-                        var centerRect = new RectangularPolygon(centerCoordinates.X - 15, centerCoordinates.Y - 15, 30, 30);
-                        image.Mutate(ctx => ctx.Fill(Color.OrangeRed, centerRect));
-                    }
+
+                    //Display the centre
+                    var centerRect = new RectangularPolygon(centerCoordinates.X - 15, centerCoordinates.Y - 15, 30, 30);
+                    image.Mutate(ctx => ctx.Fill(Color.OrangeRed, centerRect));
                 }
                 else
                     image.Mutate(x => x.Crop(cropRect));
@@ -288,11 +375,9 @@ namespace ImageGetter.Services
             return faces;
         }
 
-        private void AddText(string text, Image image, int yOffset, bool landscape, bool debug)
+        private static (Font, FontRectangle) GetFont(string text, int imageWidth, float textFontSize = 150f)
         {
             const float TEXTPADDING = 18f;
-
-            float textFontSize = 150f;
 
             FontCollection fontCollection = new();
             fontCollection.Add("Fonts/OpenSans-VariableFont_wdth,wght.ttf");
@@ -314,13 +399,22 @@ namespace ImageGetter.Services
                     KerningMode = KerningMode.Auto,
                     TextDirection = TextDirection.LeftToRight
                 };
-                
+
                 fontRectangle = TextMeasurer.MeasureSize(text, options);
-                if (fontRectangle.Width < (image.Width - 50))
+                if (fontRectangle.Width < (imageWidth - 50))
                     sizing = false;
 
                 textFontSize -= 5;
             }
+
+            return (font, fontRectangle);
+        }
+
+        private void AddText(string text, Image image, int yOffset, bool landscape, bool debug)
+        {
+            const float TEXTPADDING = 18f;
+
+            (Font font, FontRectangle fontRectangle) = GetFont(text, image.Width);
 
             var location = new PointF(image.Width - fontRectangle.Width - TEXTPADDING, image.Height - fontRectangle.Height - TEXTPADDING);
 
