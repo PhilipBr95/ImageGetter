@@ -33,15 +33,18 @@ namespace ImageGetter.Services
                 {
                     if (client.Exists(path))
                     {
-                        _media.AddRange(client.ListDirectory(path)
-                                             .Where(i => !i.IsDirectory && i.FullName.EndsWith("jpg"))
-                                             .Select(s => new Media { Filename = s.FullName, Id = HttpUtility.UrlEncode(s.FullName) }));
+                        var images = client.ListDirectory(path)
+                                           .Where(i => !i.IsDirectory && i.FullName.EndsWith("jpg"))
+                                           .Select(s => new Media { Filename = s.FullName, Id = HttpUtility.UrlEncode(s.FullName) });
+
+                        _media.AddRange(images);
+                        _logger.LogInformation($"Found {images.Count()} images in {path}");
                     }
                 }
 
                 client.Disconnect();
 
-                _logger.LogInformation($"Found {_media.Count} images");
+                _logger.LogInformation($"Total images Found: {_media.Count}");
                 return _media;
             }
             catch (Exception ex)
