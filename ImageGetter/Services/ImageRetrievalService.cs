@@ -34,7 +34,8 @@ namespace ImageGetter.Services
                     if (client.Exists(path))
                     {
                         var images = client.ListDirectory(path)
-                                           .Where(i => !i.IsDirectory && i.FullName.EndsWith("jpg"))
+                                           .Where(i => !i.IsDirectory && i.FullName.ToLower()
+                                                                                   .EndsWith("jpg"))
                                            .Select(s => new Media { Filename = s.FullName, Id = HttpUtility.UrlEncode(s.FullName) });
 
                         _media.AddRange(images);
