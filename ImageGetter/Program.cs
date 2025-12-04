@@ -49,19 +49,21 @@ namespace ImageGetter
                     throw new Exception("IMAGEGETTER_PASSWORD environment variable not set");
 
                 settings.GoogleApiKey = Environment.GetEnvironmentVariable("GOOGLE_APIKEY");
-                if (string.IsNullOrEmpty(settings.GoogleApiKey))
-                {
-                    var loggingApp = builder.Build();
-                    var logger = loggingApp.Services.GetRequiredService<ILogger<Program>>();
-
-                    logger.LogWarning("GOOGLE_APIKEY environment variable not set, location lookups will be disabled");
-                }
             });
 
             var serviceProvider = builder.Services.BuildServiceProvider();
             ImageMetadataExtensions.Initialize(serviceProvider);
 
             var app = builder.Build();
+
+            var settings = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<Settings>>().Value;
+            if (string.IsNullOrEmpty(settings.GoogleApiKey))
+            {
+                //How do you get a logger here :-(
+
+                var logger = app.Services.GetRequiredService<ILogger<Program>>();
+                logger.LogWarning("GOOGLE_APIKEY environment variable not set, location lookups will be disabled");
+            }
 
             //Cache an image on startup to speed up the first request
             await app.Services.GetRequiredService<IImageService>().CacheImageAsync();
