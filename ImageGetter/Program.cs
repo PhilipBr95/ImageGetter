@@ -41,6 +41,7 @@ namespace ImageGetter
             builder.Services.AddSingleton<IImageRetrievalService, ImageRetrievalService>();
             builder.Services.AddTransient<IImageService, ImageService>();
             builder.Services.AddMemoryCache();
+
             builder.Services.Configure<Settings>(settings =>
             {
                 settings.ImagePassword = Environment.GetEnvironmentVariable("IMAGEGETTER_PASSWORD");                
@@ -49,7 +50,12 @@ namespace ImageGetter
 
                 settings.GoogleApiKey = Environment.GetEnvironmentVariable("GOOGLE_APIKEY");
                 if (string.IsNullOrEmpty(settings.GoogleApiKey))
-                    throw new Exception("GOOGLE_APIKEY environment variable not set");
+                {
+                    var loggingApp = builder.Build();
+                    var logger = loggingApp.Services.GetRequiredService<ILogger<Program>>();
+
+                    logger.LogWarning("GOOGLE_APIKEY environment variable not set, location lookups will be disabled");
+                }
             });
 
             var serviceProvider = builder.Services.BuildServiceProvider();

@@ -38,6 +38,10 @@ namespace ImageGetter.Extensions
         
         static async public Task<string?> GetLocationStringAsync(this ImageMetadata metadata)
         {
+            //Do we have an API key?
+            if (string.IsNullOrWhiteSpace(_settings.GoogleApiKey))
+                return null;
+
             var latitude = GetExifLatitude(metadata);
             var longitude = GetExifLongitude(metadata);
 
