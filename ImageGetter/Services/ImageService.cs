@@ -148,21 +148,21 @@ namespace ImageGetter.Services
             _logger.LogDebug($"Resizing image to {width}x{height} from {image.Width}x{image.Height}");
 
             //Default to center crop
-            PointF centerCoordinates = new PointF(image.Width / 2, image.Height / 2);
+            Point centerCoordinates = new Point(image.Width / 2, image.Height / 2);
 
             var ignoreX = false;
             var ignoreY = false;
 
-            if (width > image.Width)
+            if (width < image.Width)
             {
                 ignoreX = true;
-                width = image.Width;
+                //width = image.Width;
             }
 
-            if (height > image.Height)
+            if (height < image.Height)
             {
                 ignoreY = true;
-                height = image.Height;
+                //height = image.Height;
             }
 
             //Resolution: 1280 x 800 pixels => 3200 x 2000 => 3200/2000
@@ -175,30 +175,20 @@ namespace ImageGetter.Services
 
             if (useImageCenter)
             {
-                IEnumerable<Face>? faces = await FindFaces(file);
+                IEnumerable<Face>? faces = (await FindFacesAsync(file))?.Where(w => w.Confidence > 0);
                 var bestFaces = faces?.Where(w => w.ConfidenceMultiplyer > _settings.MinConfidence)
                                         .OrderByDescending(o => o.ConfidenceMultiplyer);
 
-                var x = (image.Width / 2) - (width.Value / 2);
-                var y = (image.Height / 2) - (height.Value / 2);
-
-                if (faces == null || faces.Count() == 0)
-                {
-                    //Can we do some clever resizing
-                    if (image.Width > width && image.Height > height)
-                    {
-                        x = 0;
-                        width = image.Width;
-
-                        var newHeight = (int)(image.Width / targetRatio);
-                        y -= (newHeight - (height ?? image.Height)) / 2;
-                        height = newHeight;
-                    }
-                }
+                //Default x, y of the crop.
+                int x = 0;
+                int y = 0;
 
                 //Default crop
-                var cropRect = new Rectangle(x, y, width.Value, height.Value);
+                var cropRect = GetCropRectangle(centerCoordinates, width.Value, height.Value, image, targetRatio);
 
+                if (debug)
+                    image.Mutate(ctx => ctx.Draw(Color.Brown, 6f, new RectangularPolygon(cropRect)));
+                
                 //Did we find a face with reasonable confidence?
                 if (bestFaces?.Any() == true)
                 {
@@ -221,7 +211,11 @@ namespace ImageGetter.Services
                             y += face.Y + (face.Height / 2);
                         }
 
-                        centerCoordinates = new PointF(x / avgFaces.Count(), y / avgFaces.Count());
+                        centerCoordinates = new Point(x / avgFaces.Count(), y / avgFaces.Count());
+                        cropRect = GetCropRectangle(centerCoordinates, width.Value, height.Value, image, targetRatio);
+
+                        if (debug)
+                            image.Mutate(ctx => ctx.Draw(Color.Brown, 6f, new RectangularPolygon(centerCoordinates, new SizeF(3, 3))));
                     }
                     else
                     {
@@ -232,79 +226,83 @@ namespace ImageGetter.Services
                         if (face != null)
                         {
                             _logger.LogDebug($"Face found at {face.X},{face.Y} size {face.Width}x{face.Height} with {face.Confidence} Confidence");
-                            centerCoordinates = new PointF(face.X + (face.Width / 2), face.Y + (face.Height / 2));
+                            centerCoordinates = new Point(face.X + (face.Width / 2), face.Y + (face.Height / 2));
+                            cropRect = GetCropRectangle(centerCoordinates, width.Value, height.Value, image, targetRatio);
                         }
                         else
                             _logger.LogDebug($"No faces are tall enough. Min Face Height: {bestFaces.Min(m => m.Height)}. MinHeight: {_settings.MinHeight}");
                     }
 
-                    x = (int)centerCoordinates.X - (width.Value / 2);
-                    if (ignoreX || x < 0)
-                        x = 0;
+                    
+                    //NewMethod(ref width, ref height, image, centerCoordinates, targetRatio, out x, out y);
 
-                    y = (int)centerCoordinates.Y - (height.Value! / 2);
-                    if (ignoreY || y < 0)
-                        y = 0;
+                    //x = (int)centerCoordinates.X - (width.Value / 2);
+                    //if (ignoreX || x < 0)
+                    //    x = 0;
 
-                    if (x + width.Value > image.Width)
-                        x = image.Width - width.Value;
+                    //y = (int)centerCoordinates.Y - (height.Value! / 2);
+                    //if (ignoreY || y < 0)
+                    //    y = 0;
 
-                    if (y + height.Value > image.Height)
-                        y = image.Height - height.Value;
+                    //if (x + width.Value > image.Width)
+                    //    x = image.Width - width.Value;
 
-                    if((x > 0 || y > 0) && (width.Value < image.Width || height.Value < image.Height))
-                    {
-                        int newX = x;
-                        int newY = y;
+                    //if (y + height.Value > image.Height)
+                    //    y = image.Height - height.Value;
 
-                        //Expand it...
-                        if(x > 0)
-                        {
-                            newX = 0;
-                            newY = y - (x / (int)targetRatio);
+                    //if ((x > 0 || y > 0) && (width.Value < image.Width || height.Value < image.Height))
+                    //{
+                    //    int newX = x;
+                    //    int newY = y;
 
-                            if(newY < 0 || newY > image.Height)
-                            {
-                                //Not good
-                                newX = x - (y * (int)targetRatio);
-                                newY = 0;
+                    //    //Expand it...
+                    //    if (x > 0)
+                    //    {
+                    //        newX = 0;
+                    //        newY = y - (x / (int)targetRatio);
 
-                                if(newX < 0 || (x + newX > image.Width))
-                                {
-                                    //Not good - Abort
-                                    newX = x;
-                                    newY = y;
-                                }
-                            }
-                        }
+                    //        if (newY < 0 || newY > image.Height)
+                    //        {
+                    //            //Not good
+                    //            newX = x - (y * (int)targetRatio);
+                    //            newY = 0;
 
-                        if(newX != x || newY != y)
-                        {
-                            if (debug)
-                            {
-                                cropRect = new Rectangle((int)x, (int)y, width.Value, height.Value);
+                    //            if (newX < 0 || (x + newX > image.Width))
+                    //            {
+                    //                //Not good - Abort
+                    //                newX = x;
+                    //                newY = y;
+                    //            }
+                    //        }
+                    //    }
 
-                                var cutRect = new RectangularPolygon(cropRect);
-                                image.Mutate(ctx => ctx.Draw(Color.Blue, 6f, cutRect));
-                            }
+                    //    if (newX != x || newY != y)
+                    //    {
+                    //        if (debug)
+                    //        {
+                    //            cropRect = new Rectangle((int)x, (int)y, width.Value, height.Value);
 
-                            var diffX = x - newX;
-                            var diffY = y - newY;
+                    //            var cutRect = new RectangularPolygon(cropRect);
+                    //            image.Mutate(ctx => ctx.Draw(Color.Blue, 6f, cutRect));
+                    //        }
 
-                            x = newX;
-                            y = newY;
+                    //        var diffX = x - newX;
+                    //        var diffY = y - newY;
 
-                            //x -= (int)(diffX / 2);
-                            //y -= (int)(diffY / 2);
+                    //        x = newX;
+                    //        y = newY;
 
-                            width = (int)(width.Value + (diffX * 2));
-                            height = (int)(height.Value + (diffY * 2));
-                        }
+                    //        //x -= (int)(diffX / 2);
+                    //        //y -= (int)(diffY / 2);
 
-                        cropRect = new Rectangle((int)x, (int)y, width.Value, height.Value);
-                    }
-                    else
-                        cropRect = new Rectangle((int)x, (int)y, width.Value, height.Value);
+                    //        width = (int)(width.Value + (diffX * 2));
+                    //        height = (int)(height.Value + (diffY * 2));
+                    //    }
+
+                    //    cropRect = new Rectangle((int)x, (int)y, width.Value, height.Value);
+                    //}
+                    //else
+                    //    cropRect = new Rectangle((int)x, (int)y, width.Value, height.Value);
                 }
                 else
                     _logger.LogDebug($"None of the faces look good :-(... Max Confidence: {faces?.Max(m => m.Confidence)}");
@@ -341,7 +339,71 @@ namespace ImageGetter.Services
             return image;
         }
 
-        private async Task<IEnumerable<Face>?> FindFaces(MediaFile file)
+        private Rectangle GetCropRectangle(Point centerCoordinates, int desiredWidth, int desiredHeight, Image image, float requiredImageRatio)
+        {
+            int x = 0;
+            int y = 0;
+            int width = 0;
+            int height = 0;
+
+            if(desiredWidth > image.Width)
+            {
+                //var xDiff = desiredWidth - image.Width;
+                //var xRatio = image.Width / (float)desiredWidth;
+
+                x = 0;
+                width = image.Width;
+                height = (int)(width / requiredImageRatio);
+                y = centerCoordinates.Y;
+                //var yDiff = centerCoordinates.Y - y;
+
+                y -= height / 2;
+            }
+            else if(desiredHeight > image.Height)
+            {
+                y = 0;
+                height = image.Height;
+                width = (int)(height * requiredImageRatio);
+                x = centerCoordinates.X;
+                //var xDiff = centerCoordinates.X - x;
+
+                x -= width / 2;
+            }
+            else
+            {
+                width = desiredWidth;
+                height = desiredHeight;
+                x = centerCoordinates.X - desiredWidth / 2;
+                y = centerCoordinates.Y - desiredHeight / 2;
+
+                if(x + width > image.Width)
+                {
+                    var xExcess = (x + width) - image.Width;
+                    x -= xExcess;
+
+                    if (x < 0)
+                        x = 0;
+
+                    var yChange = (int)(xExcess / requiredImageRatio);
+                    y -= yChange;
+                }
+                else
+                {                    
+                    var xExpand = x;
+                    var yExpand = (int)(xExpand / requiredImageRatio);
+
+                    x -= xExpand;
+                    y -= yExpand;
+
+                    width += xExpand * 2;
+                    height += yExpand * 2;
+                }
+            }
+
+            return new Rectangle(x, y, width, height);
+        }
+
+        private async Task<IEnumerable<Face>?> FindFacesAsync(MediaFile file)
         {
             var http = _httpClientFactory.CreateClient();
             var content = new MultipartFormDataContent();

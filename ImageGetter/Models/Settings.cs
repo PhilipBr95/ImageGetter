@@ -9,8 +9,8 @@
         public string? GoogleApiKey { get; internal set; }
         public string? FaceApi { get; set; } = "http://192.168.1.116:8092"; //To dev locally 5000
         public double MinConfidence { get; set; } = 50000;
-        public int MinHeight { get; set; } = 80;
-        public float ImageRatioTolerance { get; set; } = 0.2f;
+        public int MinHeight { get; set; } = 100;
+        public float ImageRatioTolerance { get; set; } = 0.3f;
         public double MinAvgConfidence { get; set; } = 80000;
     }
 }

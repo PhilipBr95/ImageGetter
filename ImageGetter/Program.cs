@@ -48,7 +48,7 @@ namespace ImageGetter
                 if (string.IsNullOrEmpty(settings.ImagePassword))
                     throw new Exception("IMAGEGETTER_PASSWORD environment variable not set");
 
-                settings.GoogleApiKey = Environment.GetEnvironmentVariable("GOOGLE_APIKEY");
+                settings.GoogleApiKey = Environment.GetEnvironmentVariable("GOOGLE_APIKEY2");
             });
 
             var serviceProvider = builder.Services.BuildServiceProvider();
