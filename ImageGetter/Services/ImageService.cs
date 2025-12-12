@@ -1,5 +1,6 @@
 ﻿using ImageGetter.Controllers;
 using ImageGetter.Models;
+using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using SixLabors.Fonts;
@@ -176,8 +177,8 @@ namespace ImageGetter.Services
             if (useImageCenter)
             {
                 IEnumerable<Face>? faces = (await FindFacesAsync(file))?.Where(w => w.Confidence > 0);
-                var bestFaces = faces?.Where(w => w.ConfidenceMultiplyer > _settings.MinConfidence)
-                                        .OrderByDescending(o => o.ConfidenceMultiplyer);
+                var bestFaces = faces?.Where(w => w.ConfidenceMultiplyer > _settings.MinConfidenceMultiplier)
+                                      .OrderByDescending(o => o.ConfidenceMultiplyer);
 
                 //Default x, y of the crop.
                 int x = 0;
@@ -190,119 +191,55 @@ namespace ImageGetter.Services
                     image.Mutate(ctx => ctx.Draw(Color.Brown, 6f, new RectangularPolygon(cropRect)));
                 
                 //Did we find a face with reasonable confidence?
+                if (bestFaces?.Any() == false)
+                    bestFaces = faces?.Where(w => w.Confidence > _settings.MinConfidence)
+                                      .OrderByDescending(o => o.ConfidenceMultiplyer);
+
                 if (bestFaces?.Any() == true)
                 {
-                    //Check for good faces
-                    var avgFaceMultiplyer = bestFaces.Where(w => w.ConfidenceMultiplyer > _settings.MinAvgConfidence)
-                                                     .Select(s => s.ConfidenceMultiplyer)
-                                                     .DefaultIfEmpty(double.MaxValue)
-                                                     .Average();
-                    var avgFaces = bestFaces.Where(w => w.ConfidenceMultiplyer > avgFaceMultiplyer);
+                    x = 0; y = 0;
 
-                    //Average out the best faces
-                    if (avgFaces.Any())
+                    foreach (var face in bestFaces)
                     {
-                        x = 0; y = 0;
-
-                        foreach (var face in avgFaces)
-                        {
-                            _logger.LogDebug($"Averaging Face found with {face.Confidence} Confidence, {face.ConfidenceMultiplyer}");
-                            x += face.X + (face.Width / 2);
-                            y += face.Y + (face.Height / 2);
-                        }
-
-                        centerCoordinates = new Point(x / avgFaces.Count(), y / avgFaces.Count());
-                        cropRect = GetCropRectangle(centerCoordinates, width.Value, height.Value, image, targetRatio);
-
-                        if (debug)
-                            image.Mutate(ctx => ctx.Draw(Color.Brown, 6f, new RectangularPolygon(centerCoordinates, new SizeF(3, 3))));
-                    }
-                    else
-                    {
-                        //Just focus on the best
-                        var face = bestFaces.Where(w => w.Height > _settings.MinHeight)
-                                            .OrderByDescending(o => o.Confidence).FirstOrDefault();
-
-                        if (face != null)
-                        {
-                            _logger.LogDebug($"Face found at {face.X},{face.Y} size {face.Width}x{face.Height} with {face.Confidence} Confidence");
-                            centerCoordinates = new Point(face.X + (face.Width / 2), face.Y + (face.Height / 2));
-                            cropRect = GetCropRectangle(centerCoordinates, width.Value, height.Value, image, targetRatio);
-                        }
-                        else
-                            _logger.LogDebug($"No faces are tall enough. Min Face Height: {bestFaces.Min(m => m.Height)}. MinHeight: {_settings.MinHeight}");
+                        _logger.LogDebug($"Averaging Face found with {face.Confidence} Confidence, {face.ConfidenceMultiplyer}");
+                        x += face.X + (face.Width / 2);
+                        y += face.Y + (face.Height / 2);
                     }
 
-                    
-                    //NewMethod(ref width, ref height, image, centerCoordinates, targetRatio, out x, out y);
+                    centerCoordinates = new Point(x / bestFaces.Count(), y / bestFaces.Count());
+                    cropRect = GetCropRectangle(centerCoordinates, width.Value, height.Value, image, targetRatio);
 
-                    //x = (int)centerCoordinates.X - (width.Value / 2);
-                    //if (ignoreX || x < 0)
-                    //    x = 0;
+                    //Did we lose anybody?
+                    foreach (var face in bestFaces)
+                    {
+                        if (face.Y + face.Height > cropRect.Y + cropRect.Height)
+                        {
+                            _logger.LogDebug($"Face at {face.X},{face.Y} lost at bottom after crop");
+                            var heightDiff = (face.Y + face.Height) - (cropRect.Y + cropRect.Height) + 50;
+                            height += heightDiff;
 
-                    //y = (int)centerCoordinates.Y - (height.Value! / 2);
-                    //if (ignoreY || y < 0)
-                    //    y = 0;
+                            cropRect = new Rectangle(cropRect.X, cropRect.Y, cropRect.Width, cropRect.Height + heightDiff);
+                        }
+                        else if (face.Y < cropRect.Y)
+                        {
+                            _logger.LogDebug($"Face at {face.X},{face.Y} lost at top after crop");
+                            var heightDiff = cropRect.Y - face.Y + 50;
+                            height += heightDiff;
 
-                    //if (x + width.Value > image.Width)
-                    //    x = image.Width - width.Value;
+                            centerCoordinates = new Point(centerCoordinates.X, centerCoordinates.Y - heightDiff);
+                            cropRect = new Rectangle(cropRect.X, cropRect.Y - heightDiff, cropRect.Width, cropRect.Height + heightDiff);
+                        }
+                    }
 
-                    //if (y + height.Value > image.Height)
-                    //    y = image.Height - height.Value;
+                    var topFace = bestFaces.OrderBy(o => o.Y)
+                                           .First();
+                    var topFaceY = topFace.Y - topFace.Height;
+                    if (topFaceY < 0)
+                        topFaceY = 0;
 
-                    //if ((x > 0 || y > 0) && (width.Value < image.Width || height.Value < image.Height))
-                    //{
-                    //    int newX = x;
-                    //    int newY = y;
+                    centerCoordinates = new Point(centerCoordinates.X, centerCoordinates.Y - topFaceY);
+                    cropRect = new Rectangle(cropRect.X, topFaceY, cropRect.Width, cropRect.Height);
 
-                    //    //Expand it...
-                    //    if (x > 0)
-                    //    {
-                    //        newX = 0;
-                    //        newY = y - (x / (int)targetRatio);
-
-                    //        if (newY < 0 || newY > image.Height)
-                    //        {
-                    //            //Not good
-                    //            newX = x - (y * (int)targetRatio);
-                    //            newY = 0;
-
-                    //            if (newX < 0 || (x + newX > image.Width))
-                    //            {
-                    //                //Not good - Abort
-                    //                newX = x;
-                    //                newY = y;
-                    //            }
-                    //        }
-                    //    }
-
-                    //    if (newX != x || newY != y)
-                    //    {
-                    //        if (debug)
-                    //        {
-                    //            cropRect = new Rectangle((int)x, (int)y, width.Value, height.Value);
-
-                    //            var cutRect = new RectangularPolygon(cropRect);
-                    //            image.Mutate(ctx => ctx.Draw(Color.Blue, 6f, cutRect));
-                    //        }
-
-                    //        var diffX = x - newX;
-                    //        var diffY = y - newY;
-
-                    //        x = newX;
-                    //        y = newY;
-
-                    //        //x -= (int)(diffX / 2);
-                    //        //y -= (int)(diffY / 2);
-
-                    //        width = (int)(width.Value + (diffX * 2));
-                    //        height = (int)(height.Value + (diffY * 2));
-                    //    }
-
-                    //    cropRect = new Rectangle((int)x, (int)y, width.Value, height.Value);
-                    //}
-                    //else
-                    //    cropRect = new Rectangle((int)x, (int)y, width.Value, height.Value);
                 }
                 else
                     _logger.LogDebug($"None of the faces look good :-(... Max Confidence: {faces?.Max(m => m.Confidence)}");
@@ -310,7 +247,7 @@ namespace ImageGetter.Services
                 _logger.LogDebug($"Resizing image: {image.Width}x{image.Height} with Center {centerCoordinates}");
 
                 if (debug)
-                {                    
+                {
                     var cutRect = new RectangularPolygon(cropRect);
                     image.Mutate(ctx => ctx.Draw(Color.Orange, 6f, cutRect));
 
@@ -331,7 +268,16 @@ namespace ImageGetter.Services
                     image.Mutate(ctx => ctx.Fill(Color.OrangeRed, centerRect));
                 }
                 else
-                    image.Mutate(x => x.Crop(cropRect));
+                {
+                    try
+                    {
+                        image.Mutate(x => x.Crop(cropRect));
+                    }
+                    catch(Exception e)
+                    {
+                        _logger.LogError($"Oops - {HttpUtility.UrlEncode(file.Filename)}");
+                    }
+                }
             }
             else
                 _logger.LogInformation($"Not Resizing as the image ratio is {ratioDiff}");
