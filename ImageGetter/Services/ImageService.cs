@@ -143,154 +143,153 @@ namespace ImageGetter.Services
 
         private async Task<Image> ResizeImageAsync(int? width, int? height, bool debug, MediaFile file, Image image)
         {
-            if (width == null && height == null)
-                return image;
-
-            _logger.LogDebug($"Resizing image to {width}x{height} from {image.Width}x{image.Height}");
-
-            //Default to center crop
-            Point centerCoordinates = new Point(image.Width / 2, image.Height / 2);
-
-            var ignoreX = false;
-            var ignoreY = false;
-
-            if (width < image.Width)
+            try
             {
-                ignoreX = true;
-                //width = image.Width;
-            }
+                if (width == null && height == null)
+                    return image;
 
-            if (height < image.Height)
-            {
-                ignoreY = true;
-                //height = image.Height;
-            }
+                _logger.LogDebug($"Resizing image to {width}x{height} from {image.Width}x{image.Height}");
 
-            //Resolution: 1280 x 800 pixels => 3200 x 2000 => 3200/2000
-            var imageRatio = (float)image.Width / image.Height;
-            var targetRatio = (float)(width ?? image.Width) / (height ?? image.Height);
-            var ratioDiff = Math.Abs(imageRatio - targetRatio);
-            var useImageCenter = ratioDiff > _settings.ImageRatioTolerance;
+                //Default to center crop
+                Point centerCoordinates = new Point(image.Width / 2, image.Height / 2);
 
-            _logger.LogInformation($"Image ratio is {imageRatio}, Target ratio is {targetRatio}. Diff: {ratioDiff}");
+                var ignoreX = false;
+                var ignoreY = false;
 
-            if (useImageCenter)
-            {
-                IEnumerable<Face>? faces = (await FindFacesAsync(file))?.Where(w => w.Confidence > 0);
-                var bestFaces = faces?.Where(w => w.ConfidenceMultiplyer > _settings.MinConfidenceMultiplier)
-                                      .OrderByDescending(o => o.ConfidenceMultiplyer);
-
-                //Default x, y of the crop.
-                int x = 0;
-                int y = 0;
-
-                //Default crop
-                var cropRect = GetCropRectangle(centerCoordinates, width.Value, height.Value, image, targetRatio);
-
-                if (debug)
-                    image.Mutate(ctx => ctx.Draw(Color.Brown, 6f, new RectangularPolygon(cropRect)));
-                
-                //Did we find a face with reasonable confidence?
-                if (bestFaces?.Any() == false)
-                    bestFaces = faces?.Where(w => w.Confidence > _settings.MinConfidence)
-                                      .OrderByDescending(o => o.ConfidenceMultiplyer);
-
-                if (bestFaces?.Any() == true)
+                if (width < image.Width)
                 {
-                    x = 0; y = 0;
+                    ignoreX = true;
+                    //width = image.Width;
+                }
 
-                    foreach (var face in bestFaces)
+                if (height < image.Height)
+                {
+                    ignoreY = true;
+                    //height = image.Height;
+                }
+
+                //Resolution: 1280 x 800 pixels => 3200 x 2000 => 3200/2000
+                var imageRatio = (float)image.Width / image.Height;
+                var targetRatio = (float)(width ?? image.Width) / (height ?? image.Height);
+                var ratioDiff = Math.Abs(imageRatio - targetRatio);
+                var useImageCenter = ratioDiff > _settings.ImageRatioTolerance;
+
+                _logger.LogInformation($"Image ratio is {imageRatio}, Target ratio is {targetRatio}. Diff: {ratioDiff}");
+
+                if (useImageCenter)
+                {
+                    IEnumerable<Face>? faces = (await FindFacesAsync(file))?.Where(w => w.Confidence > 0);
+                    var bestFaces = faces?.Where(w => w.ConfidenceMultiplyer > _settings.MinConfidenceMultiplier)
+                                          .OrderByDescending(o => o.ConfidenceMultiplyer);
+
+                    //Default x, y of the crop.
+                    int x = 0;
+                    int y = 0;
+
+                    //Default crop
+                    var cropRect = GetCropRectangle(centerCoordinates, width.Value, height.Value, image, targetRatio);
+
+                    if (debug)
+                        image.Mutate(ctx => ctx.Draw(Color.Brown, 6f, new RectangularPolygon(cropRect)));
+
+                    //Did we find a face with reasonable confidence?
+                    if (bestFaces?.Any() == false)
+                        bestFaces = faces?.Where(w => w.Confidence > _settings.MinConfidence)
+                                          .OrderByDescending(o => o.ConfidenceMultiplyer);
+
+                    if (bestFaces?.Any() == true)
                     {
-                        _logger.LogDebug($"Averaging Face found with {face.Confidence} Confidence, {face.ConfidenceMultiplyer}");
-                        x += face.X + (face.Width / 2);
-                        y += face.Y + (face.Height / 2);
-                    }
+                        x = 0; y = 0;
 
-                    centerCoordinates = new Point(x / bestFaces.Count(), y / bestFaces.Count());
-                    cropRect = GetCropRectangle(centerCoordinates, width.Value, height.Value, image, targetRatio);
-                    var moveAllowed = true;
-
-                    //Did we lose anybody?
-                    foreach (var face in bestFaces)
-                    {
-                        if (moveAllowed)
+                        foreach (var face in bestFaces)
                         {
-                            if (face.Y + face.Height > cropRect.Y + cropRect.Height)
+                            _logger.LogDebug($"Averaging Face found with {face.Confidence} Confidence, {face.ConfidenceMultiplyer}");
+                            x += face.X + (face.Width / 2);
+                            y += face.Y + (face.Height / 2);
+                        }
+
+                        centerCoordinates = new Point(x / bestFaces.Count(), y / bestFaces.Count());
+                        cropRect = GetCropRectangle(centerCoordinates, width.Value, height.Value, image, targetRatio);
+                        var moveAllowed = true;
+
+                        //Did we lose anybody?
+                        foreach (var face in bestFaces)
+                        {
+                            if (moveAllowed)
                             {
-                                moveAllowed = false;
+                                if (face.Y + face.Height > cropRect.Y + cropRect.Height)
+                                {
+                                    moveAllowed = false;
 
-                                _logger.LogDebug($"Face at {face.X},{face.Y} lost at bottom after crop");
-                                var heightDiff = (face.Y + face.Height) - (cropRect.Y + cropRect.Height) + 50;
-                                //height += heightDiff;
+                                    _logger.LogDebug($"Face at {face.X},{face.Y} lost at bottom after crop");
+                                    var heightDiff = (face.Y + face.Height) - (cropRect.Y + cropRect.Height) + 50;
+                                    //height += heightDiff;
 
-                                cropRect = new Rectangle(cropRect.X, cropRect.Y, cropRect.Width, cropRect.Height + heightDiff);
-                            }
-                            else if (face.Y < cropRect.Y)
-                            {
-                                moveAllowed = false;
+                                    cropRect = new Rectangle(cropRect.X, cropRect.Y, cropRect.Width, cropRect.Height + heightDiff);
+                                }
+                                else if (face.Y < cropRect.Y)
+                                {
+                                    moveAllowed = false;
 
-                                _logger.LogDebug($"Face at {face.X},{face.Y} lost at top after crop");
-                                var heightDiff = cropRect.Y - face.Y + 50;
-                                //height += heightDiff;
+                                    _logger.LogDebug($"Face at {face.X},{face.Y} lost at top after crop");
+                                    var heightDiff = cropRect.Y - face.Y + 50;
+                                    //height += heightDiff;
 
-                                centerCoordinates = new Point(centerCoordinates.X, centerCoordinates.Y - heightDiff);
-                                cropRect = new Rectangle(cropRect.X, cropRect.Y - heightDiff, cropRect.Width, cropRect.Height);
+                                    centerCoordinates = new Point(centerCoordinates.X, centerCoordinates.Y - heightDiff);
+                                    cropRect = new Rectangle(cropRect.X, cropRect.Y - heightDiff, cropRect.Width, cropRect.Height);
+                                }
                             }
                         }
+
+                        //var topFace = bestFaces.OrderBy(o => o.Y)
+                        //                       .First();
+                        //var topFaceY = topFace.Y - topFace.Height / 2;
+                        //if (topFaceY < 0)
+                        //    topFaceY = 0;
+
+                        //centerCoordinates = new Point(centerCoordinates.X, centerCoordinates.Y - topFaceY);
+                        //cropRect = new Rectangle(cropRect.X, topFaceY, cropRect.Width, cropRect.Height);
+
                     }
+                    else
+                        _logger.LogDebug($"None of the faces look good :-(... Max Confidence: {faces?.Max(m => m.Confidence)}");
 
-                    var topFace = bestFaces.OrderBy(o => o.Y)
-                                           .First();
-                    var topFaceY = topFace.Y - topFace.Height / 2;
-                    if (topFaceY < 0)
-                        topFaceY = 0;
+                    _logger.LogDebug($"Resizing image: {image.Width}x{image.Height} with Center {centerCoordinates}");
 
-                    centerCoordinates = new Point(centerCoordinates.X, centerCoordinates.Y - topFaceY);
-                    cropRect = new Rectangle(cropRect.X, topFaceY, cropRect.Width, cropRect.Height);
-
-                }
-                else
-                    _logger.LogDebug($"None of the faces look good :-(... Max Confidence: {faces?.Max(m => m.Confidence)}");
-
-                _logger.LogDebug($"Resizing image: {image.Width}x{image.Height} with Center {centerCoordinates}");
-
-                if (debug)
-                {
-                    var cutRect = new RectangularPolygon(cropRect);
-                    image.Mutate(ctx => ctx.Draw(Color.Orange, 6f, cutRect));
-
-                    if (faces != null)
+                    if (debug)
                     {
-                        foreach (var face in faces)
+                        var cutRect = new RectangularPolygon(cropRect);
+                        image.Mutate(ctx => ctx.Draw(Color.Orange, 6f, cutRect));
+
+                        if (faces != null)
                         {
-                            (Font font, FontRectangle fontRectangle) = GetFont("random", image.Width, face.Width / 2);
-                            var faceRect = new RectangularPolygon(face.X, face.Y, face.Width, face.Height);
+                            foreach (var face in faces)
+                            {
+                                (Font font, FontRectangle fontRectangle) = GetFont("random", image.Width, face.Width / 2);
+                                var faceRect = new RectangularPolygon(face.X, face.Y, face.Width, face.Height);
 
-                            image.Mutate(ctx => ctx.Draw(Color.Yellow, 6f, faceRect)
-                                                   .DrawText($"{face.Confidence:0.0}", font, Color.Red, new PointF(face.X, face.Y)));
+                                image.Mutate(ctx => ctx.Draw(Color.Yellow, 6f, faceRect)
+                                                       .DrawText($"{face.Confidence:0.0}", font, Color.Red, new PointF(face.X, face.Y)));
+                            }
                         }
-                    }
 
-                    //Display the centre
-                    var centerRect = new RectangularPolygon(centerCoordinates.X - 15, centerCoordinates.Y - 15, 30, 30);
-                    image.Mutate(ctx => ctx.Fill(Color.OrangeRed, centerRect));
-                }
-                else
-                {
-                    try
-                    {
+                        //Display the centre
+                        var centerRect = new RectangularPolygon(centerCoordinates.X - 15, centerCoordinates.Y - 15, 30, 30);
+                        image.Mutate(ctx => ctx.Fill(Color.OrangeRed, centerRect));
+                    }
+                    else
                         image.Mutate(x => x.Crop(cropRect));
-                    }
-                    catch(Exception e)
-                    {
-                        _logger.LogError($"Oops - {HttpUtility.UrlEncode(file.Filename)}");
-                    }
                 }
-            }
-            else
-                _logger.LogInformation($"Not Resizing as the image ratio is {ratioDiff}");
+                else
+                    _logger.LogInformation($"Not Resizing as the image ratio is {ratioDiff}");
 
-            return image;
+                return image;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, $"Oops - {HttpUtility.UrlEncode(file.Filename)}");
+                throw;
+            }
         }
 
         private Rectangle GetCropRectangle(Point centerCoordinates, int desiredWidth, int desiredHeight, Image image, float requiredImageRatio)
