@@ -208,32 +208,40 @@ namespace ImageGetter.Services
 
                     centerCoordinates = new Point(x / bestFaces.Count(), y / bestFaces.Count());
                     cropRect = GetCropRectangle(centerCoordinates, width.Value, height.Value, image, targetRatio);
+                    var moveAllowed = true;
 
                     //Did we lose anybody?
                     foreach (var face in bestFaces)
                     {
-                        if (face.Y + face.Height > cropRect.Y + cropRect.Height)
+                        if (moveAllowed)
                         {
-                            _logger.LogDebug($"Face at {face.X},{face.Y} lost at bottom after crop");
-                            var heightDiff = (face.Y + face.Height) - (cropRect.Y + cropRect.Height) + 50;
-                            height += heightDiff;
+                            if (face.Y + face.Height > cropRect.Y + cropRect.Height)
+                            {
+                                moveAllowed = false;
 
-                            cropRect = new Rectangle(cropRect.X, cropRect.Y, cropRect.Width, cropRect.Height + heightDiff);
-                        }
-                        else if (face.Y < cropRect.Y)
-                        {
-                            _logger.LogDebug($"Face at {face.X},{face.Y} lost at top after crop");
-                            var heightDiff = cropRect.Y - face.Y + 50;
-                            height += heightDiff;
+                                _logger.LogDebug($"Face at {face.X},{face.Y} lost at bottom after crop");
+                                var heightDiff = (face.Y + face.Height) - (cropRect.Y + cropRect.Height) + 50;
+                                //height += heightDiff;
 
-                            centerCoordinates = new Point(centerCoordinates.X, centerCoordinates.Y - heightDiff);
-                            cropRect = new Rectangle(cropRect.X, cropRect.Y - heightDiff, cropRect.Width, cropRect.Height + heightDiff);
+                                cropRect = new Rectangle(cropRect.X, cropRect.Y, cropRect.Width, cropRect.Height + heightDiff);
+                            }
+                            else if (face.Y < cropRect.Y)
+                            {
+                                moveAllowed = false;
+
+                                _logger.LogDebug($"Face at {face.X},{face.Y} lost at top after crop");
+                                var heightDiff = cropRect.Y - face.Y + 50;
+                                //height += heightDiff;
+
+                                centerCoordinates = new Point(centerCoordinates.X, centerCoordinates.Y - heightDiff);
+                                cropRect = new Rectangle(cropRect.X, cropRect.Y - heightDiff, cropRect.Width, cropRect.Height);
+                            }
                         }
                     }
 
                     var topFace = bestFaces.OrderBy(o => o.Y)
                                            .First();
-                    var topFaceY = topFace.Y - topFace.Height;
+                    var topFaceY = topFace.Y - topFace.Height / 2;
                     if (topFaceY < 0)
                         topFaceY = 0;
 
