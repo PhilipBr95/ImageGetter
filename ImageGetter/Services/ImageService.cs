@@ -74,9 +74,26 @@ namespace ImageGetter.Services
             return await RetrieveImageAsync();
         }
 
-        public async Task<ImageWithMeta?> RetrieveImageAsync(string? filename = null, int? width = null, int? height = null, bool debug = false)
+        public async Task<ImageWithMeta?> RetrieveImageAsync(int mediaId, int? width = null, int? height = null, bool debug = false)
         {
-            if (string.IsNullOrWhiteSpace(filename))
+            return await RetrieveImageAsync(filename: null, width, height, debug, mediaId);
+        }
+
+        public async Task<ImageWithMeta?> RetrieveImageAsync(string filename, int? width = null, int? height = null, bool debug = false)
+        {
+            return await RetrieveImageAsync(filename, width, height, debug, null);
+        }
+
+        public async Task<ImageWithMeta?> RetrieveImageAsync(string? filename = null, int? width = null, int? height = null, bool debug = false, int? mediaId = null)
+        {            
+            if(mediaId.HasValue)
+            {
+                var media = _imageService.GetImage(mediaId.Value);
+                filename = media.Filename;
+
+                _logger.LogInformation($"{media.Filename} -> {HttpUtility.UrlEncode(media.Filename)}");
+            }
+            else if (string.IsNullOrWhiteSpace(filename))
             {
                 var media = _imageService.GetRandomImage();
                 filename = media.Filename;
@@ -103,7 +120,7 @@ namespace ImageGetter.Services
             var dd = FormatLocation("Hello world, other world, my world, their world");
             var createdDate = file.CreatedDate.ToString("dd/MMM/yyyy");
             var location = FormatLocation(file.Location);
-            var caption = $"{file.ParentFolderName}{(file.CreatedDate.Year > 1900 ? $" @ {createdDate}" : "")}\n{location}";
+            var caption = $"{file.MediaId} - {file.ParentFolderName}{(file.CreatedDate.Year > 1900 ? $" @ {createdDate}" : "")}\n{location}";
 
             if (debug)
                 caption += $"\n{filename}";

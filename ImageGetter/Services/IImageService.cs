@@ -7,6 +7,7 @@ namespace ImageGetter.Services
     {
         Task CacheImageAsync(int? width = null, int? height = null, bool debug = false);
         Task<ImageWithMeta?> GetCachedImageAsync(int? width = null, int? height = null, bool debug = false);
-        Task<ImageWithMeta?> RetrieveImageAsync(string? filename = null, int? width = null, int? height = null, bool debug = false);
+        Task<ImageWithMeta?> RetrieveImageAsync(string filename, int? width = null, int? height = null, bool debug = false);
+        Task<ImageWithMeta?> RetrieveImageAsync(int mediaId, int? width = null, int? height = null, bool debug = false);
     }
 }

@@ -36,7 +36,9 @@ namespace ImageGetter.Services
                         var images = client.ListDirectory(path)
                                            .Where(i => !i.IsDirectory && i.FullName.ToLower()
                                                                                    .EndsWith("jpg"))
-                                           .Select(s => new Media { Filename = s.FullName, Id = HttpUtility.UrlEncode(s.FullName) });
+                                           .OrderBy(i => i.FullName)
+                                           .Select((s,i) => new Media { MediaId = i, Filename = s.FullName, Id = HttpUtility.UrlEncode(s.FullName) });
+
 
                         _media.AddRange(images);
                         _logger.LogInformation($"Found {images.Count()} images in {path}");
@@ -106,7 +108,8 @@ namespace ImageGetter.Services
                 Height = image.Height,
                 CreatedDate = createdDate,
                 Location = location,
-                Orientation = orientation
+                Orientation = orientation,
+                MediaId = _media?.FirstOrDefault(m => m.Filename == path)?.MediaId ?? -1
             };
         }
 
@@ -119,6 +122,11 @@ namespace ImageGetter.Services
             var index = random.Next(0, _media.Count - 1);
 
             return _media[index];
+        }
+
+        public Media? GetImage(int mediaId)
+        {
+            return _media.FirstOrDefault(f => f.MediaId == mediaId);
         }
     }
 }

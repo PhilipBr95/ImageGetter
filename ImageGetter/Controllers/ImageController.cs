@@ -50,18 +50,28 @@ namespace ImageGetter.Controllers
             return await GetImage(width, height, null);
         }
 
+        [HttpGet("/image/{width}/{height}/{mediaId:int}")]
+        public async Task<IActionResult> GetImage(int? width = null, int? height = null, int? mediaId = null)
+        {
+            return await GetImage(width, height, null, mediaId);
+        }
+
         [HttpGet("/image/{width}/{height}/{filename}")]
-        public async Task<IActionResult> GetImage(int? width = null, int? height = null, string? filename = null)
+        public async Task<IActionResult> GetImage(int? width = null, int? height = null, string? filename = null, int? mediaId = null)
         {
             //Can't figure out optional params in routing :-(
             _ = bool.TryParse(Request.Query.Where(f => f.Key.Equals("debug", StringComparison.CurrentCultureIgnoreCase))
                                            .FirstOrDefault().Value, out bool debug);
 
             ImageWithMeta? image;
-            if (filename == "random.jpg")
+            if (mediaId.HasValue)
+            {
+                _logger.LogInformation($"GetImage: mediaId={mediaId}, width={width}, height={height}, debug={debug}");
+                image = await _imageService.RetrieveImageAsync(mediaId.Value, width, height, debug);
+            }
+            else if (filename == "random.jpg")
             {
                 _logger.LogInformation("GetImage: No parameters specified, returning cached image");
-
                 image = await _imageService.GetCachedImageAsync(width, height, debug);
             }
             else

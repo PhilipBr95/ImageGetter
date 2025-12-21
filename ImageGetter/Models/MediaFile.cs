@@ -11,5 +11,6 @@
         public ushort Orientation { get; internal set; }
         public bool IsLandscape => (Orientation == 1 || Orientation == 3);
         public string ParentFolderName => Path.GetFileName(Path.GetDirectoryName(Filename));
+        public int MediaId { get; internal set; }
     }
 }

@@ -11,6 +11,18 @@ namespace ImageGetter
             var builder = WebApplication.CreateBuilder(args);
 
             // Add services to the container.
+            builder.WebHost.UseSentry(o =>
+            {
+                o.Dsn = "https://6fb306e657459615387132566e5ab4cf@o4510574883373056.ingest.de.sentry.io/4510574885666896";
+                // When configuring for the first time, to see what the SDK is doing:
+                o.Debug = true;
+
+                o.MinimumBreadcrumbLevel = LogLevel.Information; // Logs captured as breadcrumbs
+                o.MinimumEventLevel = LogLevel.Error; // Logs sent as events
+                o.EnableLogs = true;
+            });
+
+            SentrySdk.CaptureMessage("Hello Sentry");
 
             builder.Services.AddControllers();
 
@@ -37,11 +49,12 @@ namespace ImageGetter
                         consoleOptions.SingleLine = true;
                 });
                 options.AddDebug().SetMinimumLevel(LogLevel.Debug);
+                options.AddSentry();
             });            
             builder.Services.AddSingleton<IImageRetrievalService, ImageRetrievalService>();
             builder.Services.AddTransient<IImageService, ImageService>();
             builder.Services.AddMemoryCache();
-
+           
             builder.Services.Configure<Settings>(settings =>
             {
                 settings.ImagePassword = Environment.GetEnvironmentVariable("IMAGEGETTER_PASSWORD");                
