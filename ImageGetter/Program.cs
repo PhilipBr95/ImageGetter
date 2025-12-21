@@ -15,17 +15,15 @@ namespace ImageGetter
             {
                 o.Dsn = "https://6fb306e657459615387132566e5ab4cf@o4510574883373056.ingest.de.sentry.io/4510574885666896";
                 // When configuring for the first time, to see what the SDK is doing:
-                o.Debug = true;
+                //o.Debug = true;
 
-                o.MinimumBreadcrumbLevel = LogLevel.Information; // Logs captured as breadcrumbs
-                o.MinimumEventLevel = LogLevel.Error; // Logs sent as events
+                //o.MinimumBreadcrumbLevel = LogLevel.Information; // Logs captured as breadcrumbs
+                //o.MinimumEventLevel = LogLevel.Error; // Logs sent as events
                 o.EnableLogs = true;
                 o.TracesSampleRate = 1.0; // Capture 100% of transactions for performance monitoring.
             });
 
-            SentrySdk.CaptureMessage("Hello Sentry");
-
-            builder.Services.AddControllers();
+            //builder.Services.AddControllers();
 
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
