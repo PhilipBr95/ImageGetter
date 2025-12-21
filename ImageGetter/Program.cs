@@ -20,6 +20,7 @@ namespace ImageGetter
                 o.MinimumBreadcrumbLevel = LogLevel.Information; // Logs captured as breadcrumbs
                 o.MinimumEventLevel = LogLevel.Error; // Logs sent as events
                 o.EnableLogs = true;
+                o.TracesSampleRate = 1.0; // Capture 100% of transactions for performance monitoring.
             });
 
             SentrySdk.CaptureMessage("Hello Sentry");
@@ -69,6 +70,7 @@ namespace ImageGetter
 
             var app = builder.Build();
 
+            app.UseSentryTracing();
             var settings = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<Settings>>().Value;
             if (string.IsNullOrEmpty(settings.GoogleApiKey))
             {
