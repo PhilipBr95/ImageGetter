@@ -23,7 +23,7 @@ namespace ImageGetter
                 o.TracesSampleRate = 1.0; // Capture 100% of transactions for performance monitoring.
             });
 
-            //builder.Services.AddControllers();
+            builder.Services.AddControllers();
 
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
