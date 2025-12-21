@@ -400,7 +400,7 @@ namespace ImageGetter.Services
 
             if (faces.Length == 0 || faces[0]?.X == 0)
             {
-                _logger.LogError($"Unexpected FindFace response: {faceString}");
+                _logger.LogWarning($"Unexpected FindFace response: {faceString}");
                 return null;
             }
 
