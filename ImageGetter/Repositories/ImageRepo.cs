@@ -1,0 +1,109 @@
+﻿using ImageGetter.Models;
+using Microsoft.Extensions.Options;
+using System.Runtime;
+
+namespace ImageGetter.Repositories
+{
+    public class ImageRepo : IImageRepository, IDisposable
+    {
+        private readonly Settings _settings;
+        private readonly ILogger<IImageRepository> _logger;
+        private List<MediaMeta> _db;
+        
+        private int _pendingSaveCount = 0;
+
+        public ImageRepo(IOptions<Settings> settings, ILogger<IImageRepository> logger) 
+        {
+            _settings = settings.Value;
+            _logger = logger;
+
+            _db = LazyInitializer.EnsureInitialized(ref _db, () => LoadDatabase());
+        }
+
+        private List<MediaMeta>? LoadDatabase()
+        {
+            _logger.LogInformation("Loading image database from disk");
+
+            if (!File.Exists(_settings.DatabasePath))
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(_settings.DatabasePath)!);
+
+                _logger.LogWarning($"Image database file not found, creating new database {_settings.DatabasePath}");
+
+                _db = [];
+                SaveDatabase(true);
+
+                return _db;
+            }
+
+            var json = File.ReadAllText(_settings.DatabasePath);
+            var db = System.Text.Json.JsonSerializer.Deserialize<List<MediaMeta>>(json);
+
+            _logger.LogInformation($"Loaded {db?.Count ?? 0} media entries from database");
+            return db;
+        }
+
+        public bool TryGetMedia(string filename, out MediaMeta mediaMeta)
+        {
+            mediaMeta = _db.FirstOrDefault(m => m.Filename == filename);
+            IncrementDisplayCount(mediaMeta);
+
+            return mediaMeta != null;
+        }
+
+        public void AddMedia(MediaMeta media) 
+        {
+            _db.Add(media);
+
+            SaveDatabase();
+        }
+
+        public void UpdateMedia(MediaMeta media)
+        {
+            if(TryGetMedia(media.Filename, out MediaMeta mediaMeta))
+                _db.Remove(mediaMeta);
+
+            AddMedia(media);
+        }
+
+        public void IncrementDisplayCount(string filename)
+        {
+            if (TryGetMedia(filename, out MediaMeta mediaMeta))
+            {
+                IncrementDisplayCount(mediaMeta);
+            }
+        }
+
+        public void IncrementDisplayCount(MediaMeta mediaMeta)
+        {
+            if (mediaMeta is null)
+                return;
+
+            mediaMeta.DisplayCount++;
+            UpdateMedia(mediaMeta);
+        }
+
+        private void SaveDatabase(bool forceSave = false)
+        {
+            _pendingSaveCount++;
+
+            if (forceSave || _pendingSaveCount > _settings.MaxCachedSaves)
+            {
+                _logger.LogInformation("Saving image database to disk");
+
+                var json = System.Text.Json.JsonSerializer.Serialize(_db, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(_settings.DatabasePath, json);
+
+                _pendingSaveCount = 0;
+            }
+        }
+
+        public void Dispose()
+        {
+            if(_db is not null)
+                SaveDatabase(true);
+
+            GC.SuppressFinalize(this);
+        }
+    }
+}

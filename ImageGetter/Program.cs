@@ -1,5 +1,6 @@
 ﻿using ImageGetter.Extensions;
 using ImageGetter.Models;
+using ImageGetter.Repositories;
 using ImageGetter.Services;
 
 namespace ImageGetter
@@ -50,8 +51,10 @@ namespace ImageGetter
                 options.AddDebug().SetMinimumLevel(LogLevel.Debug);
                 options.AddSentry();
             });            
+
             builder.Services.AddSingleton<IImageRetrievalService, ImageRetrievalService>();
             builder.Services.AddTransient<IImageService, ImageService>();
+            builder.Services.AddSingleton<IImageRepository, ImageRepo>();
             builder.Services.AddMemoryCache();
            
             builder.Services.Configure<Settings>(settings =>
@@ -60,7 +63,7 @@ namespace ImageGetter
                 if (string.IsNullOrEmpty(settings.ImagePassword))
                     throw new Exception("IMAGEGETTER_PASSWORD environment variable not set");
 
-                settings.GoogleApiKey = Environment.GetEnvironmentVariable("GOOGLE_APIKEY2");
+                settings.GoogleApiKey = Environment.GetEnvironmentVariable("GOOGLE_APIKEY");
             });
 
             var serviceProvider = builder.Services.BuildServiceProvider();

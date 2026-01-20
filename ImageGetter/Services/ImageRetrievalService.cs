@@ -1,5 +1,6 @@
 ﻿using ImageGetter.Extensions;
 using ImageGetter.Models;
+using ImageGetter.Repositories;
 using Microsoft.Extensions.Options;
 using Renci.SshNet;
 using SixLabors.ImageSharp;
@@ -10,12 +11,14 @@ namespace ImageGetter.Services
 {
     internal class ImageRetrievalService : IImageRetrievalService
     {
+        private readonly IImageRepository _imageRepository;
         private Settings _settings;
         private List<Media> _media;
         private readonly ILogger<ImageRetrievalService> _logger;
 
-        public ImageRetrievalService(IOptions<Settings> settings, ILogger<ImageRetrievalService> logger)
+        public ImageRetrievalService(IImageRepository imageRepository, IOptions<Settings> settings, ILogger<ImageRetrievalService> logger)
         {
+            _imageRepository = imageRepository;
             _settings = settings.Value;
             _logger = logger;
         }
@@ -97,7 +100,26 @@ namespace ImageGetter.Services
                 }
 
                 orientation = image.Metadata.GetOrientation() ?? 0;
-                location = image.Metadata.GetLocationStringAsync().GetAwaiter().GetResult() ?? "";
+
+                if (_imageRepository.TryGetMedia(path, out MediaMeta mediaMeta))
+                    location = mediaMeta.Location;
+                else
+                {
+                    if (Path.GetExtension(path) == ".jpg")
+                    {
+                        location = image.Metadata.GetLocationStringAsync().GetAwaiter().GetResult() ?? "";
+
+                        if (!string.IsNullOrWhiteSpace(location))
+                        {
+                            _imageRepository.AddMedia(new MediaMeta
+                            {
+                                Filename = path,
+                                Location = location,
+                                DisplayCount = 1
+                            });
+                        }
+                    }
+                }
             }
 
             return new MediaFile
