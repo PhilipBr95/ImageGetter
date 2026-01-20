@@ -59,10 +59,17 @@ namespace ImageGetter.Repositories
 
         public void AddMedia(MediaMeta media) 
         {
-            IncrementDisplayCount(media);
-            _db.Add(media);
+            try
+            {
+                IncrementDisplayCount(media);
+                _db.Add(media);
 
-            SaveDatabase();
+                SaveDatabase();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error adding media to database: {JsonSerializer.Serialize(media)}");
+            }
         }
 
         public void UpdateMedia(MediaMeta media)
@@ -88,8 +95,6 @@ namespace ImageGetter.Repositories
 
             mediaMeta.DisplayCount++;
             mediaMeta.LastViewedDate = DateTime.UtcNow;
-
-            UpdateMedia(mediaMeta);
         }
 
         private void SaveDatabase(bool forceSave = false)
