@@ -122,6 +122,10 @@ namespace ImageGetter.Services
                     }
                 }
             }
+            else
+            {
+                _logger.LogWarning($"No EXIF data found for {path}");
+            }
 
             return new MediaFile
             {
