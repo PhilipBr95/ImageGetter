@@ -14,6 +14,6 @@
         public float ImageRatioTolerance { get; set; } = 0.3f;
         public double MinAvgConfidence { get; set; } = 80000;
         public string DatabasePath { get; set; } = "./DB/Images.json";
-        public int MaxCachedSaves { get; set; } = 15;
+        public int MaxCachedSaves { get; set; } = 5;
     }
 }
