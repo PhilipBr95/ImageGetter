@@ -39,7 +39,7 @@ namespace ImageGetter.Services
                         var images = client.ListDirectory(path)
                                            .Where(i => !i.IsDirectory && i.FullName.ToLower()
                                                                                    .EndsWith("jpg"))
-                                           .OrderBy(i => i.FullName)
+                                           .OrderBy(i => i.LastWriteTimeUtc)
                                            .Select((s,i) => new Media { MediaId = i, Filename = s.FullName, Id = HttpUtility.UrlEncode(s.FullName) });
 
 
@@ -81,6 +81,7 @@ namespace ImageGetter.Services
             DateTime createdDate = DateTime.MinValue;
             string location = "";
             ushort orientation = 0;
+            int mediaId = _media?.FirstOrDefault(m => m.Filename == path)?.MediaId ?? -1;
 
             //image.Metadata.DebugExif();
 
@@ -115,7 +116,7 @@ namespace ImageGetter.Services
                             {
                                 Filename = path,
                                 Location = location,
-                                DisplayCount = 1
+                                MediaId = mediaId       //Mainly for current logging purposes
                             });
                         }
                     }
@@ -131,7 +132,7 @@ namespace ImageGetter.Services
                 CreatedDate = createdDate,
                 Location = location,
                 Orientation = orientation,
-                MediaId = _media?.FirstOrDefault(m => m.Filename == path)?.MediaId ?? -1
+                MediaId = mediaId
             };
         }
 

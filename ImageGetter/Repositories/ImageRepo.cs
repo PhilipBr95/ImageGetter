@@ -1,6 +1,7 @@
 ﻿using ImageGetter.Models;
 using Microsoft.Extensions.Options;
 using System.Runtime;
+using System.Text.Json;
 
 namespace ImageGetter.Repositories
 {
@@ -40,9 +41,11 @@ namespace ImageGetter.Repositories
             }
 
             var json = File.ReadAllText(_settings.DatabasePath);
-            var db = System.Text.Json.JsonSerializer.Deserialize<List<MediaMeta>>(json);
+            var db = JsonSerializer.Deserialize<List<MediaMeta>>(json);
 
             _logger.LogInformation($"Loaded {db?.Count ?? 0} media entries from database");
+            _logger.LogInformation($"First entry: {JsonSerializer.Serialize(db.FirstOrDefault())}");
+
             return db;
         }
 
@@ -56,6 +59,7 @@ namespace ImageGetter.Repositories
 
         public void AddMedia(MediaMeta media) 
         {
+            IncrementDisplayCount(media);
             _db.Add(media);
 
             SaveDatabase();
@@ -83,6 +87,8 @@ namespace ImageGetter.Repositories
                 return;
 
             mediaMeta.DisplayCount++;
+            mediaMeta.LastViewedDate = DateTime.UtcNow;
+
             UpdateMedia(mediaMeta);
         }
 
@@ -94,7 +100,7 @@ namespace ImageGetter.Repositories
             {
                 _logger.LogInformation("Saving image database to disk");
 
-                var json = System.Text.Json.JsonSerializer.Serialize(_db, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                var json = JsonSerializer.Serialize(_db, new JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(_settings.DatabasePath, json);
 
                 _pendingSaveCount = 0;
