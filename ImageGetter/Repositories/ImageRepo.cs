@@ -17,6 +17,9 @@ namespace ImageGetter.Repositories
             _settings = settings.Value;
             _logger = logger;
 
+            //Force a quick save to help with debugging
+            _pendingSaveCount = _settings.MaxCachedSaves - 1;
+
             _db = LazyInitializer.EnsureInitialized(ref _db, () => LoadDatabase());
         }
 
@@ -87,7 +90,7 @@ namespace ImageGetter.Repositories
         {
             _pendingSaveCount++;
 
-            if (forceSave || _pendingSaveCount > _settings.MaxCachedSaves)
+            if (forceSave || _pendingSaveCount >= _settings.MaxCachedSaves)
             {
                 _logger.LogInformation("Saving image database to disk");
 
