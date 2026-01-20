@@ -103,8 +103,8 @@ namespace ImageGetter.Repositories
 
             if (forceSave || _pendingSaveCount >= _settings.MaxCachedSaves)
             {
-                _logger.LogInformation("Saving image database to disk");
-
+                _logger.LogInformation("Saving image database({_db.Count} images) to disk");
+                
                 var json = JsonSerializer.Serialize(_db, new JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(_settings.DatabasePath, json);
 
