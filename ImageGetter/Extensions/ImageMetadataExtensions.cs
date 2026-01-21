@@ -47,7 +47,7 @@ namespace ImageGetter.Extensions
 
             if (latitude.HasValue && longitude.HasValue)
             {
-                var location = new Location(latitude.Value, longitude.Value);
+                var location = new Geocoding.Location(latitude.Value, longitude.Value);
 
                 IGeocoder geocoder = new GoogleGeocoder() { ApiKey = _settings.GoogleApiKey };
                 IEnumerable<Address> addresses = await geocoder.ReverseGeocodeAsync(location);

@@ -105,6 +105,8 @@ namespace ImageGetter.Repositories
             {
                 _logger.LogInformation($"Saving image database({_db.Count} images) to disk");
                 
+                //create a backup
+
                 var json = JsonSerializer.Serialize(_db, new JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(_settings.DatabasePath, json);
 

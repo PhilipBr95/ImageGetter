@@ -103,7 +103,7 @@ namespace ImageGetter.Services
                 orientation = image.Metadata.GetOrientation() ?? 0;
 
                 if (_imageRepository.TryGetMedia(path, out MediaMeta mediaMeta))
-                    location = mediaMeta.Location;
+                    location = mediaMeta?.Location?.Address;
                 else
                 {
                     if (Path.GetExtension(path) == ".jpg")
@@ -115,7 +115,11 @@ namespace ImageGetter.Services
                             _imageRepository.AddMedia(new MediaMeta
                             {
                                 Filename = path,
-                                Location = location,
+                                Location = new Location { 
+                                    Address = location, 
+                                    Latitude = image.Metadata.GetExifLatitude(), 
+                                    Longitude = image.Metadata.GetExifLongitude() 
+                                },
                                 MediaId = mediaId       //Mainly for current logging purposes
                             });
                         }
