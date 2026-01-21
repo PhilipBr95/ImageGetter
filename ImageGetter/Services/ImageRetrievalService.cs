@@ -83,13 +83,15 @@ namespace ImageGetter.Services
             ushort orientation = 0;
             int mediaId = _media?.FirstOrDefault(m => m.Filename == path)?.MediaId ?? -1;
 
-            //image.Metadata.DebugExif();
+            _logger.LogInformation($"1...");
 
             var exifProfile = image.Metadata.ExifProfile;
             if (exifProfile != null)
             {
+                _logger.LogInformation($"2...");
                 if (exifProfile.TryGetValue(SixLabors.ImageSharp.Metadata.Profiles.Exif.ExifTag.DateTimeOriginal, out var exifValue))
                 {
+                    _logger.LogInformation($"3...");
                     var dateString = exifValue?.GetValue() as string;
                     if (!string.IsNullOrEmpty(dateString))
                     {
@@ -103,22 +105,28 @@ namespace ImageGetter.Services
                 orientation = image.Metadata.GetOrientation() ?? 0;
 
                 if (_imageRepository.TryGetMedia(path, out MediaMeta mediaMeta))
+                {                    
                     location = mediaMeta?.Location?.Address;
+                    _logger.LogInformation($"Using cached location: {location}");
+                }
                 else
                 {
+                    _logger.LogInformation($"4...");
                     if (Path.GetExtension(path) == ".jpg")
                     {
                         location = image.Metadata.GetLocationStringAsync().GetAwaiter().GetResult() ?? "";
 
+                        _logger.LogInformation($"5...");
                         if (!string.IsNullOrWhiteSpace(location))
                         {
                             _imageRepository.AddMedia(new MediaMeta
                             {
                                 Filename = path,
-                                Location = new Location { 
-                                    Address = location, 
-                                    Latitude = image.Metadata.GetExifLatitude(), 
-                                    Longitude = image.Metadata.GetExifLongitude() 
+                                Location = new Location
+                                {
+                                    Address = location,
+                                    Latitude = image.Metadata.GetExifLatitude(),
+                                    Longitude = image.Metadata.GetExifLongitude()
                                 },
                                 MediaId = mediaId       //Mainly for current logging purposes
                             });
