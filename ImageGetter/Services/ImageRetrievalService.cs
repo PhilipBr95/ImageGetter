@@ -105,30 +105,25 @@ namespace ImageGetter.Services
                     location = mediaMeta?.Location?.Address;
                     _logger.LogInformation($"Using cached location: {location}");
                 }
-                else
-                {
-                    if (Path.GetExtension(path) == ".jpg")
-                    {
+                else if (Path.GetExtension(path) == ".jpg")
                         location = image.Metadata.GetLocationStringAsync().GetAwaiter().GetResult() ?? "";
-
-                        _imageRepository.AddMedia(new MediaMeta
-                        {
-                            Filename = path,
-                            Location = new Location
-                            {
-                                Address = location,
-                                Latitude = image.Metadata.GetExifLatitude(),
-                                Longitude = image.Metadata.GetExifLongitude()
-                            },
-                            MediaId = mediaId       //Mainly for current logging purposes
-                        });
-                    }
-                }
             }
             else
             {
                 _logger.LogWarning($"No EXIF data found for {path}");
             }
+
+            _imageRepository.AddMedia(new MediaMeta
+            {
+                Filename = path,
+                Location = new Location
+                {
+                    Address = location,
+                    Latitude = image.Metadata?.GetExifLatitude(),
+                    Longitude = image.Metadata?.GetExifLongitude()
+                },
+                MediaId = mediaId       //Mainly for current logging purposes
+            });
 
             return new MediaFile
             {
