@@ -45,6 +45,8 @@ namespace ImageGetter.Extensions
             var latitude = GetExifLatitude(metadata);
             var longitude = GetExifLongitude(metadata);
 
+            _logger.LogInformation($"log / lat: {longitude} / {latitude}");
+
             if (latitude.HasValue && longitude.HasValue)
             {
                 var location = new Geocoding.Location(latitude.Value, longitude.Value);
@@ -61,8 +63,9 @@ namespace ImageGetter.Extensions
                 }
 
                 return addresses.First().FormattedAddress;                
-            }            
+            }
 
+            _logger.LogInformation($"No log / lat");
             return null;
         }
 

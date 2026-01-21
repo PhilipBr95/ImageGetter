@@ -116,7 +116,7 @@ namespace ImageGetter.Services
                     {
                         location = image.Metadata.GetLocationStringAsync().GetAwaiter().GetResult() ?? "";
 
-                        _logger.LogInformation($"5...");
+                        _logger.LogInformation($"5...location: {location}");
                         if (!string.IsNullOrWhiteSpace(location))
                         {
                             _imageRepository.AddMedia(new MediaMeta
