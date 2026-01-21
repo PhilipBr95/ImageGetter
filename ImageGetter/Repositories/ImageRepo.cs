@@ -113,14 +113,15 @@ namespace ImageGetter.Repositories
                 _pendingSaveCount = 0;
 
                 //Do we need to create a backup
-                if (_settings.DebugMode || _pendingBackupCount >= _settings.BackupEvery)
+                if (_pendingBackupCount >= _settings.BackupEvery)
                 {
                     var backupPath = Path.Combine(Path.GetDirectoryName(_settings.DatabasePath), "Backup");
                     Directory.CreateDirectory(backupPath);
 
-                    backupPath = Path.Combine(backupPath, $"{DateTime.UtcNow:yyyyMMddHHmmss}.bak");                    
+                    backupPath = Path.Combine(backupPath, $"Images.{DateTime.UtcNow:yyyyMMddHHmmss}.bak");                    
                     File.WriteAllText(backupPath, json);
 
+                    _logger.LogInformation($"Saving image backup to {backupPath}");
                     _pendingBackupCount = 0;
                 }
             }
