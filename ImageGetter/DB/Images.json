@@ -1,0 +1,24 @@
+[
+  {
+    "Filename": "/photo/Phil\u0027s Phone/20140825_110808.jpg",
+    "Location": {
+      "Latitude": 53.73896025,
+      "Longitude": -0.33012538888888887,
+      "Address": ""
+    },
+    "DisplayCount": 1,
+    "LastViewedDate": "2026-01-21T21:04:43.8631193Z",
+    "MediaId": 268
+  },
+  {
+    "Filename": "/photo/Phil\u0027s Phone/PXL_20240922_172227074.jpg",
+    "Location": {
+      "Latitude": 53.794019444444444,
+      "Longitude": -1.6781166666666665,
+      "Address": "1 Round Hill Rd, Pudsey LS28 8BJ, UK"
+    },
+    "DisplayCount": 1,
+    "LastViewedDate": "2026-01-21T21:09:36.1905005Z",
+    "MediaId": 1286
+  }
+]

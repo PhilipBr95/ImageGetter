@@ -83,51 +83,61 @@ namespace ImageGetter.Services
         {
             return await RetrieveImageAsync(filename, width, height, debug, null);
         }
-
+        
         public async Task<ImageWithMeta?> RetrieveImageAsync(string? filename = null, int? width = null, int? height = null, bool debug = false, int? mediaId = null)
-        {            
-            if(mediaId.HasValue)
-            {
-                var media = _imageService.GetImage(mediaId.Value);
-                filename = media.Filename;
+        {
+            Media media = null;
 
-                _logger.LogInformation($"{media.Filename} -> {HttpUtility.UrlEncode(media.Filename)}");
+            try
+            {
+                if (mediaId.HasValue)
+                {
+                    media = _imageService.GetImage(mediaId.Value);
+                    filename = media.Filename;
+
+                    _logger.LogInformation($"{media.Filename} -> {HttpUtility.UrlEncode(media.Filename)}");
+                }
+                else if (string.IsNullOrWhiteSpace(filename))
+                {
+                    media = _imageService.GetRandomImage();
+                    filename = media.Filename;
+
+                    _logger.LogInformation($"{media.Filename} -> {HttpUtility.UrlEncode(media.Filename)}");
+                }
+                else
+                    filename = HttpUtility.UrlDecode(filename);
+
+                var file = _imageService.GetImage(filename);
+                if (file == null)
+                {
+                    _logger.LogError($"Failed to find image {filename}");
+                    return null;
+                }
+
+                var image = await Image.LoadAsync(new MemoryStream(file.Data));
+                image.Mutate(x => x.AutoOrient());
+                image = await ResizeImageAsync(width, height, debug, file, image);
+
+                var landscape = file.IsLandscape;
+                _logger.LogDebug($"{(landscape ? "Landscape mode" : "Portrate mode")} - Orientation:{file.Orientation} - Dimensions:{image.Width}x{image.Height}");
+
+                var dd = FormatLocation("Hello world, other world, my world, their world");
+                var createdDate = file.CreatedDate.ToString("dd/MMM/yyyy");
+                var location = FormatLocation(file.Location);
+                var caption = $"{file.MediaId} - {file.ParentFolderName}{(file.CreatedDate.Year > 1900 ? $" @ {createdDate}" : "")}\n{location}";
+
+                if (debug)
+                    caption += $"\n{filename}";
+
+                AddText(caption, image, 0, landscape, debug);
+
+                return new ImageWithMeta(image, filename);
             }
-            else if (string.IsNullOrWhiteSpace(filename))
+            catch (Exception ex)
             {
-                var media = _imageService.GetRandomImage();
-                filename = media.Filename;
-
-                _logger.LogInformation($"{media.Filename} -> {HttpUtility.UrlEncode(media.Filename)}");
-            }
-            else
-                filename = HttpUtility.UrlDecode(filename);
-
-            var file = _imageService.GetImage(filename);
-            if (file == null)
-            {
-                _logger.LogError($"Failed to find image {filename}");
+                _logger.LogError(ex, $"Failed to retrieve image: {filename} - mediaId: {media?.MediaId}");
                 return null;
             }
-
-            var image = await Image.LoadAsync(new MemoryStream(file.Data));
-            image.Mutate(x => x.AutoOrient());
-            image = await ResizeImageAsync(width, height, debug, file, image);
-
-            var landscape = file.IsLandscape;
-            _logger.LogDebug($"{(landscape ? "Landscape mode" : "Portrate mode")} - Orientation:{file.Orientation} - Dimensions:{image.Width}x{image.Height}");
-
-            var dd = FormatLocation("Hello world, other world, my world, their world");
-            var createdDate = file.CreatedDate.ToString("dd/MMM/yyyy");
-            var location = FormatLocation(file.Location);
-            var caption = $"{file.MediaId} - {file.ParentFolderName}{(file.CreatedDate.Year > 1900 ? $" @ {createdDate}" : "")}\n{location}";
-
-            if (debug)
-                caption += $"\n{filename}";
-
-            AddText(caption, image, 0, landscape, debug);
-
-            return new ImageWithMeta(image, filename);
         }
 
         private static string FormatLocation(string location)
@@ -304,7 +314,7 @@ namespace ImageGetter.Services
             }
             catch (Exception e)
             {
-                _logger.LogError(e, $"Oops - {HttpUtility.UrlEncode(file.Filename)}");
+                _logger.LogError(e, $"Oops - MediaId{file.MediaId} - {HttpUtility.UrlEncode(file.Filename)}");
                 throw;
             }
         }

@@ -40,7 +40,8 @@ namespace ImageGetter.Services
                                            .Where(i => !i.IsDirectory && i.FullName.ToLower()
                                                                                    .EndsWith("jpg"))
                                            .OrderBy(i => i.LastWriteTimeUtc)
-                                           .Select((s,i) => new Media { MediaId = i, Filename = s.FullName, Id = HttpUtility.UrlEncode(s.FullName) });
+                                           .ThenByDescending(i => i.FullName)
+                                           .Select((s,i) => new Media { MediaId = i, Filename = s.FullName, Id = HttpUtility.UrlEncode(s.FullName), LastWriteTimeUtc = s.LastWriteTimeUtc });
 
 
                         _media.AddRange(images);
