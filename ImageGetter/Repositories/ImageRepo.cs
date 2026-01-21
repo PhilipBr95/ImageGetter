@@ -12,6 +12,7 @@ namespace ImageGetter.Repositories
         private List<MediaMeta> _db;
         
         private int _pendingSaveCount = 0;
+        private int _pendingBackupCount = 0;
 
         public ImageRepo(IOptions<Settings> settings, ILogger<IImageRepository> logger) 
         {
@@ -100,17 +101,28 @@ namespace ImageGetter.Repositories
         private void SaveDatabase(bool forceSave = false)
         {
             _pendingSaveCount++;
+            _pendingBackupCount++;
 
-            if (forceSave || _pendingSaveCount >= _settings.MaxCachedSaves)
+            if (_settings.DebugMode || forceSave || _pendingSaveCount >= _settings.MaxCachedSaves)
             {
                 _logger.LogInformation($"Saving image database({_db.Count} images) to disk");
-                
-                //create a backup
-
+                                
                 var json = JsonSerializer.Serialize(_db, new JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(_settings.DatabasePath, json);
 
                 _pendingSaveCount = 0;
+
+                //Do we need to create a backup
+                if (_settings.DebugMode || _pendingBackupCount >= _settings.BackupEvery)
+                {
+                    var backupPath = Path.Combine(Path.GetDirectoryName(_settings.DatabasePath), "Backup");
+                    Directory.CreateDirectory(backupPath);
+
+                    backupPath = Path.Combine(backupPath, $"{DateTime.UtcNow:yyyyMMddHHmmss}.bak");                    
+                    File.WriteAllText(backupPath, json);
+
+                    _pendingBackupCount = 0;
+                }
             }
         }
 
