@@ -323,7 +323,7 @@ namespace ImageGetter.Services
             bool imageTooBig = true;
             bool widthBest = true;
 
-            if (xDiff < 1 || yDiff < 1)
+            if (xDiff < 1 && yDiff < 1)
                 imageTooBig = false;
 
             //Is height the issue?
