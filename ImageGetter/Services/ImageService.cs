@@ -320,20 +320,21 @@ namespace ImageGetter.Services
             //Which is worse, Height or Width?
             var xDiff = desiredWidth / (double)image.Width;
             var yDiff = desiredHeight / (double)image.Height;
-            bool sizeIssue = true;
-            
-            if (xDiff > 1 && yDiff > 1)
-                sizeIssue = false;
+            bool imageTooBig = true;
+            bool widthBest = true;
+
+            if (xDiff < 1 || yDiff < 1)
+                imageTooBig = false;
 
             //Is height the issue?
-            if (sizeIssue && xDiff > yDiff)
+            if (imageTooBig && xDiff > yDiff)
             {                
                 x = 0;
                 width = image.Width;
                 height = (int)(width / requiredImageRatio);
                 y = (image.Height - height) / 2;
             }
-            else if (sizeIssue)
+            else if (imageTooBig)
             {
                 y = 0;
                 height = image.Height;
@@ -342,6 +343,43 @@ namespace ImageGetter.Services
             }
             else
             {
+                //if(xDiff > yDiff)
+                //{
+                //    //Use desiredHeight
+
+                //    width = desiredWidth;
+                //}
+                //else
+                //{
+                //    //Use desiredWidth
+                //    height = desiredHeight;
+                //}
+
+                //x = centerCoordinates.X - desiredWidth / 2;
+                //y = centerCoordinates.Y - desiredHeight / 2;
+
+                //if (x + width > image.Width)
+                //{
+                //    var xExcess = (x + width) - image.Width;
+                //    x -= xExcess;
+
+                //    if (x < 0)
+                //        x = 0;
+
+                //    var yChange = (int)(xExcess / requiredImageRatio);
+                //    y -= yChange;
+                //}
+                //else
+                //{
+                //    var xExpand = x;
+                //    var yExpand = (int)(xExpand / requiredImageRatio);
+
+                //    x -= xExpand;
+                //    y -= yExpand;
+
+                //    width += xExpand * 2;
+                //    height += yExpand * 2;
+                //}
                 width = desiredWidth;
                 height = desiredHeight;
                 x = centerCoordinates.X - desiredWidth / 2;
@@ -369,6 +407,8 @@ namespace ImageGetter.Services
                     width += xExpand * 2;
                     height += yExpand * 2;
                 }
+
+
             }
 
             return new Rectangle(x, y, width, height);
