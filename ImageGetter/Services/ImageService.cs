@@ -226,15 +226,6 @@ namespace ImageGetter.Services
 
                     if (bestFaces?.Any() == true)
                     {
-                        x = 0; y = 0;
-
-                        foreach (var face in bestFaces)
-                        {
-                            _logger.LogDebug($"Averaging Face found with {face.Confidence} Confidence, {face.ConfidenceMultiplyer}");
-                            x += face.X + (face.Width / 2);
-                            y += face.Y + (face.Height / 2);
-                        }
-
                         centerCoordinates = new Point(x / bestFaces.Count(), y / bestFaces.Count());
                         cropRect = GetCropRectangle(centerCoordinates, width.Value, height.Value, image, targetRatio);
                         var moveAllowed = true;
@@ -249,7 +240,7 @@ namespace ImageGetter.Services
                                     moveAllowed = false;
 
                                     _logger.LogDebug($"Face at {face.X},{face.Y} lost at bottom after crop");
-                                    var heightDiff = (face.Y + face.Height) - (cropRect.Y + cropRect.Height) + 50;
+                                    var heightDiff = (face.Y + face.Height) - (cropRect.Y + cropRect.Height) + (face.Width / 2);
                                     //height += heightDiff;
 
                                     cropRect = new Rectangle(cropRect.X, cropRect.Y, cropRect.Width, cropRect.Height + heightDiff);
@@ -259,7 +250,7 @@ namespace ImageGetter.Services
                                     moveAllowed = false;
 
                                     _logger.LogDebug($"Face at {face.X},{face.Y} lost at top after crop");
-                                    var heightDiff = cropRect.Y - face.Y + 50;
+                                    var heightDiff = cropRect.Y - face.Y + (face.Height / 2);
                                     //height += heightDiff;
 
                                     centerCoordinates = new Point(centerCoordinates.X, centerCoordinates.Y - heightDiff);
@@ -281,7 +272,7 @@ namespace ImageGetter.Services
                     else
                         _logger.LogDebug($"None of the faces look good :-(... Max Confidence: {faces?.Max(m => m.Confidence)}");
 
-                    _logger.LogDebug($"Resizing image: {image.Width}x{image.Height} with Center {centerCoordinates}");
+                    _logger.LogDebug($"Resizing image: {image.Width}x{image.Height} with Center {centerCoordinates} to {cropRect.Width}x{cropRect.Height}");
 
                     if (debug)
                     {
@@ -314,7 +305,7 @@ namespace ImageGetter.Services
             }
             catch (Exception e)
             {
-                _logger.LogError(e, $"Oops - MediaId{file.MediaId} - {HttpUtility.UrlEncode(file.Filename)}");
+                _logger.LogError(e, $"Oops - MediaId:{file.MediaId} - {HttpUtility.UrlEncode(file.Filename)}");
                 throw;
             }
         }
@@ -326,28 +317,28 @@ namespace ImageGetter.Services
             int width = 0;
             int height = 0;
 
-            if(desiredWidth > image.Width)
-            {
-                //var xDiff = desiredWidth - image.Width;
-                //var xRatio = image.Width / (float)desiredWidth;
+            //Which is worse, Height or Width?
+            var xDiff = desiredWidth / (double)image.Width;
+            var yDiff = desiredHeight / (double)image.Height;
+            bool sizeIssue = true;
+            
+            if (xDiff > 1 && yDiff > 1)
+                sizeIssue = false;
 
+            //Is height the issue?
+            if (sizeIssue && xDiff > yDiff)
+            {                
                 x = 0;
                 width = image.Width;
                 height = (int)(width / requiredImageRatio);
-                y = centerCoordinates.Y;
-                //var yDiff = centerCoordinates.Y - y;
-
-                y -= height / 2;
+                y = (image.Height - height) / 2;
             }
-            else if(desiredHeight > image.Height)
+            else if (sizeIssue)
             {
                 y = 0;
                 height = image.Height;
                 width = (int)(height * requiredImageRatio);
-                x = centerCoordinates.X;
-                //var xDiff = centerCoordinates.X - x;
-
-                x -= width / 2;
+                x = (image.Width - width) / 2;
             }
             else
             {
@@ -356,7 +347,7 @@ namespace ImageGetter.Services
                 x = centerCoordinates.X - desiredWidth / 2;
                 y = centerCoordinates.Y - desiredHeight / 2;
 
-                if(x + width > image.Width)
+                if (x + width > image.Width)
                 {
                     var xExcess = (x + width) - image.Width;
                     x -= xExcess;
@@ -368,7 +359,7 @@ namespace ImageGetter.Services
                     y -= yChange;
                 }
                 else
-                {                    
+                {
                     var xExpand = x;
                     var yExpand = (int)(xExpand / requiredImageRatio);
 

@@ -7,7 +7,7 @@ namespace ImageGetter.Services
     {
         MediaFile? GetImage(string path);
         Media? GetImage(int mediaId);
-        IEnumerable<Media> GetImages();
+        void LoadImages();
         Media GetRandomImage();
     }
 }

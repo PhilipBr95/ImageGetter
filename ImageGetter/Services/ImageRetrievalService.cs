@@ -23,14 +23,14 @@ namespace ImageGetter.Services
             _logger = logger;
         }
 
-        public IEnumerable<Media> GetImages()
+        public void LoadImages()
         {
             try
             {
                 using SftpClient client = new SftpClient(new PasswordConnectionInfo(_settings.Host, _settings.Username, _settings.ImagePassword));
                 client.Connect();
 
-                _media = new List<Media>();
+                var allMedia = new List<Media>();
 
                 foreach (var path in _settings.Paths)
                 {
@@ -41,18 +41,27 @@ namespace ImageGetter.Services
                                                                                    .EndsWith("jpg"))
                                            .OrderBy(i => i.LastWriteTimeUtc)
                                            .ThenByDescending(i => i.FullName)
-                                           .Select((s,i) => new Media { MediaId = i, Filename = s.FullName, Id = HttpUtility.UrlEncode(s.FullName), LastWriteTimeUtc = s.LastWriteTimeUtc });
+                                           .Select(s => new Media { Filename = s.FullName, Id = HttpUtility.UrlEncode(s.FullName), LastWriteTimeUtc = s.LastWriteTimeUtc });
 
-
-                        _media.AddRange(images);
+                        allMedia.AddRange(images);
                         _logger.LogInformation($"Found {images.Count()} images in {path}");
                     }
                 }
 
                 client.Disconnect();
 
-                _logger.LogInformation($"Total images Found: {_media.Count}");
-                return _media;
+                _logger.LogInformation($"Total images Found: {allMedia.Count}");
+                
+                _media = allMedia.OrderBy(o => o.LastWriteTimeUtc)
+                                 .ThenBy(o => o.Filename)
+                                 .Select((s, i) => new Media { MediaId = i, Filename = s.Filename, LastWriteTimeUtc = s.LastWriteTimeUtc, Id = s.Id })
+                                 .ToList();
+
+                //foreach (var d in _media)
+                //{
+                //   _logger.LogInformation($"{d.MediaId}, {d.Filename}");
+                //}
+
             }
             catch (Exception ex)
             {
@@ -142,7 +151,7 @@ namespace ImageGetter.Services
         public Media GetRandomImage()
         {
             if (_media == null || !_media.Any())
-                GetImages();
+                LoadImages();
 
             var random = new Random();
             var index = random.Next(0, _media.Count - 1);

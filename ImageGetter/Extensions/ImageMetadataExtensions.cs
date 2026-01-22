@@ -15,7 +15,7 @@ namespace ImageGetter.Extensions
 
         public static void Initialize(IServiceProvider serviceProvider)
         {
-            _logger = serviceProvider.GetRequiredService<ILoggerFactory>().CreateLogger(nameof(ImageMetadataExtensions));
+            _logger = serviceProvider.GetRequiredService<ILoggerFactory>().CreateLogger($"ImageGetter.Extensions.{nameof(ImageMetadataExtensions)}");
             _settings = serviceProvider.GetRequiredService<IOptions<Settings>>().Value;
         }
 
@@ -44,9 +44,7 @@ namespace ImageGetter.Extensions
 
             var latitude = GetExifLatitude(metadata);
             var longitude = GetExifLongitude(metadata);
-
-            _logger.LogInformation($"log / lat: {longitude} / {latitude}");
-
+            
             if (latitude.HasValue && longitude.HasValue)
             {
                 var location = new Geocoding.Location(latitude.Value, longitude.Value);
