@@ -380,33 +380,53 @@ namespace ImageGetter.Services
                 //    width += xExpand * 2;
                 //    height += yExpand * 2;
                 //}
-                width = desiredWidth;
-                height = desiredHeight;
-                x = centerCoordinates.X - desiredWidth / 2;
-                y = centerCoordinates.Y - desiredHeight / 2;
 
-                if (x + width > image.Width)
-                {
-                    var xExcess = (x + width) - image.Width;
-                    x -= xExcess;
+                //Image too small
+                x = 0;
+                y = 0;
+                width = image.Width;
+                height = image.Height;
 
-                    if (x < 0)
-                        x = 0;
 
-                    var yChange = (int)(xExcess / requiredImageRatio);
-                    y -= yChange;
-                }
-                else
-                {
-                    var xExpand = x;
-                    var yExpand = (int)(xExpand / requiredImageRatio);
+                //if(xDiff > yDiff)
+                //{
+                //    //Use X
+                //    width = image.Width;
+                //    height = (int)(width / requiredImageRatio);
+                //    x = centerCoordinates.X - ((image.Width - width) / 2);
+                //    y = centerCoordinates.Y - ((image.Height - height) / 2);
+                //}
+                //else
+                //{
+                //    //Use Y
+                //    height = desiredHeight;
+                //    width = (int)(height * requiredImageRatio);
+                //    x = centerCoordinates.X - ((image.Width - width) / 2);
+                //    y = centerCoordinates.Y - ((image.Height - height) / 2);
+                //}
 
-                    x -= xExpand;
-                    y -= yExpand;
+                //if (x + width > image.Width)
+                //{
+                //    var xExcess = (x + width) - image.Width;
+                //    x -= xExcess;
 
-                    width += xExpand * 2;
-                    height += yExpand * 2;
-                }
+                //    if (x < 0)
+                //        x = 0;
+
+                //    var yChange = (int)(xExcess / requiredImageRatio);
+                //    y -= yChange;
+                //}
+                //else
+                //{
+                //    var xExpand = x;
+                //    var yExpand = (int)(xExpand / requiredImageRatio);
+
+                //    x -= xExpand;
+                //    y -= yExpand;
+
+                //    width += xExpand * 2;
+                //    height += yExpand * 2;
+                //}
 
 
             }
