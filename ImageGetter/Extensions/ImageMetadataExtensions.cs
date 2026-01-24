@@ -12,6 +12,7 @@ namespace ImageGetter.Extensions
     {
         private static ILogger _logger;
         private static Settings _settings;
+        private static int _gets = 0;
 
         public static void Initialize(IServiceProvider serviceProvider)
         {
@@ -47,6 +48,9 @@ namespace ImageGetter.Extensions
             
             if (latitude.HasValue && longitude.HasValue)
             {
+                _gets++;
+                _logger.LogInformation($"Getting location for lat:{latitude}, long:{longitude} (Gets: {_gets})");
+
                 var location = new Geocoding.Location(latitude.Value, longitude.Value);
 
                 IGeocoder geocoder = new GoogleGeocoder() { ApiKey = _settings.GoogleApiKey };
