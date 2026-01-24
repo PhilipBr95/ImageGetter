@@ -250,11 +250,12 @@ namespace ImageGetter.Services
                                 moveAllowed = false;
 
                                 _logger.LogDebug($"Face at {bestFace.X},{bestFace.Y} lost at top after crop");
-                                var heightDiff = cropRect.Y - (bestFace.Y + (bestFace.Height / 2));
+                                var heightDiff = (cropRect.Y - bestFace.Y) + (bestFace.Height);
                                 //height += heightDiff;
 
+                                
                                 centerCoordinates = new Point(centerCoordinates.X, centerCoordinates.Y - heightDiff);
-                                cropRect = new Rectangle(cropRect.X, heightDiff, cropRect.Width, cropRect.Height);
+                                cropRect = new Rectangle(cropRect.X, cropRect.Y - heightDiff, cropRect.Width, cropRect.Height);
                             }
                         }
 
