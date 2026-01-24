@@ -45,7 +45,7 @@ namespace ImageGetter.Repositories
             var db = JsonSerializer.Deserialize<List<MediaMeta>>(json);
 
             _logger.LogInformation($"Loaded {db?.Count ?? 0} media entries from database");
-            _logger.LogInformation($"First entry: {JsonSerializer.Serialize(db.FirstOrDefault())}");
+            _logger.LogInformation($"Most Popular: {db?.Max(o => o.DisplayCount)}");
 
             return db;
         }
