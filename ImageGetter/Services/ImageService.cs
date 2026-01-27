@@ -329,6 +329,9 @@ namespace ImageGetter.Services
                 if (width == null && height == null)
                     return image;
 
+                width ??= image.Width;
+                height ??= image.Height;
+
                 _logger.LogDebug($"Resizing image to {width}x{height} from {image.Width}x{image.Height}");
 
                 //Default to center crop
@@ -396,8 +399,18 @@ namespace ImageGetter.Services
                     {
                         _logger.LogDebug($"None of the faces look good :-(... Max Confidence: {faces?.Max(m => m.Confidence)}");
 
-                        //Don't resize
-                        cropRect = new Rectangle(0, 0, image.Width, image.Height);
+                        //If we don't do anything then only the top part of the image is displayed..
+                        //Resize to show the full image
+
+                        var resizedWidth = (int)(height * imageRatio);
+                        image = image.Clone(ctx => ctx.Resize(new ResizeOptions
+                        {
+                            Size = new Size(resizedWidth, height.Value),
+                            Mode = ResizeMode.Max
+                        }));
+
+                        _logger.LogInformation($"Resized image to {image.Width}x{image.Height} to fit full image in frame");
+                        return image;
                     }
 
                     _logger.LogDebug($"Resizing image: {image.Width}x{image.Height} with Center {centerCoordinates} to {cropRect.Width}x{cropRect.Height}");
