@@ -168,7 +168,7 @@ namespace ImageGetter.Services
             return formattedLocation;
         }
 
-        private async Task<Image> ResizeImageAsync(int? width, int? height, bool debug, MediaFile file, Image image)
+        private async Task<Image> ResizeImageAsync_Old(int? width, int? height, bool debug, MediaFile file, Image image)
         {
             try
             {
@@ -251,11 +251,23 @@ namespace ImageGetter.Services
 
                                 _logger.LogDebug($"Face at {bestFace.X},{bestFace.Y} lost at top after crop");
                                 var heightDiff = (cropRect.Y - bestFace.Y) + (bestFace.Height);
-                                //height += heightDiff;
+                                var newY = cropRect.Y - heightDiff;
 
-                                
-                                centerCoordinates = new Point(centerCoordinates.X, centerCoordinates.Y - heightDiff);
-                                cropRect = new Rectangle(cropRect.X, cropRect.Y - heightDiff, cropRect.Width, cropRect.Height);
+                                if (newY < 0)
+                                    newY = 0;
+
+                                //Did we lose the bottom of the face
+                                if (bestFace.Height < newY + cropRect.Height)
+                                    newY = cropRect.Y;
+
+                                //if (heightDiff > centerCoordinates.Y)
+                                //    heightDiff = centerCoordinates.Y;
+
+                                //if (heightDiff > cropRect.Y)
+                                //    heightDiff = cropRect.Y;
+
+                                //centerCoordinates = new Point(centerCoordinates.X, centerCoordinates.Y - heightDiff);
+                                cropRect = new Rectangle(cropRect.X, newY, cropRect.Width, cropRect.Height);
                             }
                         }
 
@@ -310,6 +322,122 @@ namespace ImageGetter.Services
             }
         }
 
+        private async Task<Image> ResizeImageAsync(int? width, int? height, bool debug, MediaFile file, Image image)
+        {
+            try
+            {
+                if (width == null && height == null)
+                    return image;
+
+                _logger.LogDebug($"Resizing image to {width}x{height} from {image.Width}x{image.Height}");
+
+                //Default to center crop
+                Point centerCoordinates = new Point(image.Width / 2, image.Height / 2);
+
+                var ignoreX = false;
+                var ignoreY = false;
+
+                if (width < image.Width)
+                {
+                    ignoreX = true;
+                    //width = image.Width;
+                }
+
+                if (height < image.Height)
+                {
+                    ignoreY = true;
+                    //height = image.Height;
+                }
+
+                //Resolution: 1280 x 800 pixels => 3200 x 2000 => 3200/2000
+                var imageRatio = (float)image.Width / image.Height;
+                var targetRatio = (float)(width ?? image.Width) / (height ?? image.Height);
+                var ratioDiff = Math.Abs(imageRatio - targetRatio);
+                var useImageCenter = ratioDiff > _settings.ImageRatioTolerance;
+
+                _logger.LogInformation($"Image ratio is {imageRatio}, Target ratio is {targetRatio}. Diff: {ratioDiff}");
+
+                if (useImageCenter)
+                {
+                    IEnumerable<Face>? faces = (await FindFacesAsync(file))?.Where(w => w.Confidence > 0);
+                    var bestFaces = faces?.Where(w => w.ConfidenceMultiplyer > _settings.MinConfidenceMultiplier)
+                                          .OrderByDescending(o => o.ConfidenceMultiplyer);
+
+                    //Default x, y of the crop.
+                    int x = 0;
+                    int y = 0;
+
+                    //Default crop
+                    var cropRect = GetCropRectangle(centerCoordinates, width.Value, height.Value, image, targetRatio);
+
+                    if (debug)
+                        image.Mutate(ctx => ctx.Draw(Color.Brown, 6f, new RectangularPolygon(cropRect)));
+
+                    //Did we find a face with reasonable confidence?
+                    if (bestFaces?.Any() == false)
+                        bestFaces = faces?.Where(w => w.Confidence > _settings.MinConfidence)
+                                          .OrderByDescending(o => o.ConfidenceMultiplyer);
+
+                    if (bestFaces?.Any() == true)
+                    {
+                        var bestFace = bestFaces.OrderByDescending(o => o.ConfidenceMultiplyer).First();
+
+                        var faceCenter = new Point(bestFace.X + (bestFace.Width / 2), bestFace.Y + (bestFace.Height / 2));
+                        var yDiff = faceCenter.Y - centerCoordinates.Y;
+
+                        //Are we moving up
+                        if (yDiff < 0)
+                            yDiff = (int)(yDiff * 0.8);
+
+                        centerCoordinates = new Point(centerCoordinates.X, centerCoordinates.Y + yDiff);
+                        cropRect = GetCropRectangle(centerCoordinates, width.Value, height.Value, image, targetRatio);
+                    }
+                    else
+                    {
+                        _logger.LogDebug($"None of the faces look good :-(... Max Confidence: {faces?.Max(m => m.Confidence)}");
+
+                        //Don't resize
+                        cropRect = new Rectangle(0, 0, image.Width, image.Height);
+                    }
+
+                    _logger.LogDebug($"Resizing image: {image.Width}x{image.Height} with Center {centerCoordinates} to {cropRect.Width}x{cropRect.Height}");
+
+                    if (debug)
+                    {
+                        var cutRect = new RectangularPolygon(cropRect);
+                        image.Mutate(ctx => ctx.Draw(Color.Orange, 6f, cutRect));
+
+                        if (faces != null)
+                        {
+                            foreach (var face in faces)
+                            {
+                                (Font font, FontRectangle fontRectangle) = GetFont("random", image.Width, face.Width / 2);
+                                var faceRect = new RectangularPolygon(face.X, face.Y, face.Width, face.Height);
+
+                                image.Mutate(ctx => ctx.Draw(Color.Yellow, 6f, faceRect)
+                                                       .DrawText($"{face.Confidence:0.0}", font, Color.Red, new PointF(face.X, face.Y)));
+                            }
+                        }
+
+                        //Display the centre
+                        var centerRect = new RectangularPolygon(centerCoordinates.X - 15, centerCoordinates.Y - 15, 30, 30);
+                        image.Mutate(ctx => ctx.Fill(Color.OrangeRed, centerRect));
+                    }
+                    else
+                        image.Mutate(x => x.Crop(cropRect));
+                }
+                else
+                    _logger.LogInformation($"Not Resizing as the image ratio is {ratioDiff}");
+
+                return image;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, $"Oops - MediaId:{file.MediaId} - {HttpUtility.UrlEncode(file.Filename)}");
+                throw;
+            }
+        }
+
         private Rectangle GetCropRectangle(Point centerCoordinates, int desiredWidth, int desiredHeight, Image image, float requiredImageRatio)
         {
             int x = 0;
@@ -323,8 +451,8 @@ namespace ImageGetter.Services
             bool imageTooBig = true;
             bool widthBest = true;
 
-            if (xDiff < 1 && yDiff < 1)
-                imageTooBig = false;
+            //if (xDiff < 1 && yDiff < 1)
+            //    imageTooBig = false;
 
             //Is height the issue?
             if (imageTooBig && xDiff > yDiff)
@@ -332,7 +460,14 @@ namespace ImageGetter.Services
                 x = 0;
                 width = image.Width;
                 height = (int)(width / requiredImageRatio);
-                y = (image.Height - height) / 2;
+
+                //y = (image.Height - height) / 2;
+
+                //The new Y taking into concideration the centerPoint
+                y = centerCoordinates.Y - (height / 2);
+
+                if (y < 0)
+                    y = 0;
             }
             else if (imageTooBig)
             {
@@ -343,17 +478,16 @@ namespace ImageGetter.Services
             }
             else
             {
-                //if(xDiff > yDiff)
-                //{
-                //    //Use desiredHeight
-
-                //    width = desiredWidth;
-                //}
-                //else
-                //{
-                //    //Use desiredWidth
-                //    height = desiredHeight;
-                //}
+                if(xDiff > yDiff)
+                {
+                    //Use desiredHeight
+                    width = desiredWidth;
+                }
+                else
+                {
+                    //Use desiredWidth
+                    height = desiredHeight;
+                }
 
                 //x = centerCoordinates.X - desiredWidth / 2;
                 //y = centerCoordinates.Y - desiredHeight / 2;
