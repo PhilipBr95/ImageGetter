@@ -44,10 +44,24 @@ namespace ImageGetter.Repositories
             var json = File.ReadAllText(_settings.DatabasePath);
             var db = JsonSerializer.Deserialize<List<MediaMeta>>(json);
 
-            _logger.LogInformation($"Loaded {db?.Count ?? 0} media entries from database");
-            _logger.LogInformation($"Most Popular: {db?.Max(o => o.DisplayCount)} views");
+            var totalViews = db?.GroupBy(m => m.Filename)
+                                .Select(s => new { Filename = s.Key, DisplayCount = s.Sum(ss => ss.DisplayCount) })
+                                .ToList();
 
-            return db;
+            //Remove dupes
+            var fixedDb = db?.GroupBy(m => m.Filename)
+                             .Select(g => g.Last())
+                             .ToList();
+
+            _logger.LogInformation($"Removed {db?.Count - fixedDb?.Count} duplicate entries from database [{db?.Count} vs {fixedDb?.Count}]");
+
+            //Fix display counts to be the total views across all duplicates
+            fixedDb.ForEach(m => m.DisplayCount = totalViews?.FirstOrDefault(t => t.Filename == m.Filename)?.DisplayCount ?? m.DisplayCount);
+
+            _logger.LogInformation($"Loaded {fixedDb?.Count ?? 0} media entries from database");
+            _logger.LogInformation($"Most Popular: {fixedDb?.Max(o => o.DisplayCount)} views");
+
+            return fixedDb;
         }
 
         public bool TryGetMedia(string filename, out MediaMeta mediaMeta)
@@ -73,23 +87,7 @@ namespace ImageGetter.Repositories
             }
         }
 
-        public void UpdateMedia(MediaMeta media)
-        {
-            if(TryGetMedia(media.Filename, out MediaMeta mediaMeta))
-                _db.Remove(mediaMeta);
-
-            AddMedia(media);
-        }
-
-        public void IncrementDisplayCount(string filename)
-        {
-            if (TryGetMedia(filename, out MediaMeta mediaMeta))
-            {
-                IncrementDisplayCount(mediaMeta);
-            }
-        }
-
-        public void IncrementDisplayCount(MediaMeta mediaMeta)
+        private void IncrementDisplayCount(MediaMeta mediaMeta)
         {
             if (mediaMeta is null)
                 return;
