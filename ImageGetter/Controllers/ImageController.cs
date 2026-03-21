@@ -12,6 +12,7 @@ namespace ImageGetter.Controllers
     {
         private readonly IImageService _imageService;
         private readonly ILogger<ImageController> _logger;
+        private static Dictionary<int, string> _viewedImages = [];
 
         public ImageController(IImageService imageService, ILogger<ImageController> logger) 
         {
@@ -41,7 +42,7 @@ namespace ImageGetter.Controllers
         [HttpGet("/image/{filename:alpha?}")]
         public async Task<IActionResult> GetImage(string filename)
         {
-            return await GetImage(null, null, filename);
+            return await GetImage(null, null, null, filename);
         }
 
         [HttpGet("/image/{width:int}/{height:int}")]
@@ -53,12 +54,21 @@ namespace ImageGetter.Controllers
         [HttpGet("/image/{width}/{height}/{mediaId:int}")]
         public async Task<IActionResult> GetImage(int? width = null, int? height = null, int? mediaId = null)
         {
-            return await GetImage(width, height, null, mediaId);
+            return await GetImage(width, height, null, null, mediaId);
         }
 
-        [HttpGet("/image/{width}/{height}/{filename}")]
-        public async Task<IActionResult> GetImage(int? width = null, int? height = null, string? filename = null, int? mediaId = null)
+        [HttpGet("/image/{width}/{height}/{viewid}/{filename}")]
+        public async Task<IActionResult> GetImage(int? width = null, int? height = null, int? viewId = null, string? filename = null, int? mediaId = null)
         {
+            if(viewId is not null)
+            {
+                //Check if we have a cached filename for this viewId
+                if (_viewedImages.TryGetValue(viewId.Value, out filename)) ;
+                {
+                    _logger.LogInformation($"Using ViewId {viewId} pointing to {filename}");
+                }
+            }
+
             //Can't figure out optional params in routing :-(
             _ = bool.TryParse(Request.Query.Where(f => f.Key.Equals("debug", StringComparison.CurrentCultureIgnoreCase))
                                            .FirstOrDefault().Value, out bool debug);
@@ -79,6 +89,12 @@ namespace ImageGetter.Controllers
 
             if(image == null)
                 return NotFound(filename);
+
+            if (viewId is not null && filename is null)
+            {
+                //Cache the filename for the viewId for future requests
+                _viewedImages.Add(viewId.Value, image.Filename);
+            }
 
             MemoryStream ms = new();
             image.Image.Save(ms, new JpegEncoder());
