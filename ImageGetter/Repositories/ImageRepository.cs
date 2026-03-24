@@ -5,7 +5,7 @@ using System.Text.Json;
 
 namespace ImageGetter.Repositories
 {
-    public class ImageRepo : IImageRepository, IDisposable
+    public class ImageRepository : IImageRepository, IDisposable
     {
         private readonly Settings _settings;
         private readonly ILogger<IImageRepository> _logger;
@@ -14,7 +14,7 @@ namespace ImageGetter.Repositories
         private int _pendingSaveCount = 0;
         private int _pendingBackupCount = 0;
 
-        public ImageRepo(IOptions<Settings> settings, ILogger<IImageRepository> logger) 
+        public ImageRepository(IOptions<Settings> settings, ILogger<IImageRepository> logger) 
         {
             _settings = settings.Value;
             _logger = logger;
@@ -78,8 +78,6 @@ namespace ImageGetter.Repositories
             {
                 IncrementDisplayCount(media);
                 _db.Add(media);
-
-                SaveDatabase();
             }
             catch (Exception ex)
             {
@@ -87,13 +85,15 @@ namespace ImageGetter.Repositories
             }
         }
 
-        private void IncrementDisplayCount(MediaMeta mediaMeta)
+        private void IncrementDisplayCount(MediaMeta? mediaMeta)
         {
             if (mediaMeta is null)
                 return;
 
             mediaMeta.DisplayCount++;
             mediaMeta.LastViewedDate = DateTime.UtcNow;
+
+            SaveDatabase();
         }
 
         private void SaveDatabase(bool forceSave = false)

@@ -54,7 +54,7 @@ namespace ImageGetter
 
             builder.Services.AddSingleton<IImageRetrievalService, ImageRetrievalService>();
             builder.Services.AddTransient<IImageService, ImageService>();
-            builder.Services.AddSingleton<IImageRepository, ImageRepo>();
+            builder.Services.AddSingleton<IImageRepository, ImageRepository>();
             builder.Services.AddMemoryCache();
            
             builder.Services.Configure<Settings>(settings =>

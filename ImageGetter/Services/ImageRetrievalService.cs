@@ -56,12 +56,6 @@ namespace ImageGetter.Services
                                  .ThenBy(o => o.Filename)
                                  .Select((s, i) => new Media { MediaId = i, Filename = s.Filename, LastWriteTimeUtc = s.LastWriteTimeUtc, Id = s.Id })
                                  .ToList();
-
-                //foreach (var d in _media)
-                //{
-                //   _logger.LogInformation($"{d.MediaId}, {d.Filename}");
-                //}
-
             }
             catch (Exception ex)
             {
@@ -108,14 +102,12 @@ namespace ImageGetter.Services
                             createdDate = parsedDate;
                     }
                 }
-                
-                if (mediaMeta != null)
-                {                    
-                    location = mediaMeta?.Location?.Address;
-                    _logger.LogInformation($"Using cached location: {location}");
-                }
-                else if (Path.GetExtension(path) == ".jpg")
+
+                if (mediaMeta == null && Path.GetExtension(path) == ".jpg")
+                {
+                    _logger.LogWarning($"No cached metadata found for {path}");
                     location = image.Metadata.GetLocationStringAsync().GetAwaiter().GetResult() ?? "";
+                }
             }
             else
             {
@@ -128,7 +120,7 @@ namespace ImageGetter.Services
             {
                 _logger.LogInformation($"Adding media metadata for {path} to repository");
 
-                _imageRepository.AddMedia(new MediaMeta
+                mediaMeta = new MediaMeta
                 {
                     Filename = path,
                     Location = new Location
@@ -138,7 +130,9 @@ namespace ImageGetter.Services
                         Longitude = image.Metadata?.GetExifLongitude()
                     },
                     MediaId = mediaId       //Mainly for current logging purposes
-                });
+                };
+
+                _imageRepository.AddMedia(mediaMeta);
             }
 
             orientation = image.Metadata?.GetOrientation() ?? 0;
@@ -149,10 +143,10 @@ namespace ImageGetter.Services
                 Data = memoryStream.ToArray(),
                 Width = image.Width,
                 Height = image.Height,
-                CreatedDate = createdDate,
-                Location = location,
+                CreatedDate = createdDate,                
                 Orientation = orientation,
-                MediaId = mediaId
+                MediaId = mediaId,
+                Meta = mediaMeta
             };
         }
 

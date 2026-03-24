@@ -123,7 +123,7 @@ namespace ImageGetter.Services
 
                 var dd = FormatLocation("Hello world, other world, my world, their world");
                 var createdDate = file.CreatedDate.ToString("dd/MMM/yyyy");
-                var location = FormatLocation(file.Location);
+                var location = FormatLocation(file.Meta?.GetLocation());
                 var caption = $"{file.MediaId} - {file.ParentFolderName}{(file.CreatedDate.Year > 1900 ? $" @ {createdDate}" : "")}\n{location}";
 
                 if (debug)
@@ -140,9 +140,10 @@ namespace ImageGetter.Services
             }
         }
 
-        private static string FormatLocation(string location)
+        private static string? FormatLocation(string? location)
         {
-            if (location.Length < 40)
+
+            if (location is null || location.Length < 40)
                 return location;
 
             var parts = location.Split(',', StringSplitOptions.RemoveEmptyEntries)
@@ -583,6 +584,20 @@ namespace ImageGetter.Services
 
         private async Task<IEnumerable<Face>?> FindFacesAsync(MediaFile file)
         {
+            Face[]? faces = null;
+            const int FACES_VERSION = 1;
+
+            //Do we already have cached Faces?
+            if (file.Meta?.Objects.HasObjects(FACES_VERSION) == true)
+            {                
+                faces = file.Meta.Objects.GetObjects(ObjectTypes.Faces)
+                                         ?.ToArray();
+                
+                _logger.LogInformation($"Using cached Faces ({faces?.Length} faces)...");
+
+                return faces;
+            }
+
             var http = _httpClientFactory.CreateClient();
             var content = new MultipartFormDataContent();
             var fileContent = new StreamContent(new MemoryStream(file.Data));
@@ -591,14 +606,16 @@ namespace ImageGetter.Services
             var faceResponse = await http.PostAsync(_settings.FaceApi, content);
 
             string faceString = "";
-            Face[]? faces = null;
 
             try
             {
                 faceString = await faceResponse.Content.ReadAsStringAsync();
                 faces = JsonSerializer.Deserialize<Face[]>(faceString);
 
-                _logger.LogInformation($"Discovered {faces.Length} faces");
+                _logger.LogInformation($"Discovered {faces?.Length} faces");
+
+                //Cache the faces for next time
+                file.Meta?.Objects.SetFaces(FACES_VERSION, faces);
             }
             catch (Exception ex)
             {

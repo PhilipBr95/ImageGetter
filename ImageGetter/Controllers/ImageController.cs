@@ -91,7 +91,7 @@ namespace ImageGetter.Controllers
                 return NotFound(filename);
 
             //Do we need to cache the filename for future requests
-            if (_viewedImages.TryGetValue(viewId.Value, out _) == false)
+            if (viewId is not null && _viewedImages.TryGetValue(viewId.Value, out _) == false)
             {
                 _viewedImages.Add(viewId.Value, image.Filename);
 

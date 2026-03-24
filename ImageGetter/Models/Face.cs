@@ -3,7 +3,7 @@
 namespace ImageGetter.Models
 {
     [DebuggerDisplay("ConfidenceM = {ConfidenceMultiplyer}: Confidence = {Confidence}, Width = {Width}, Height = {Height}")]
-    class Face
+    public class Face
     {
         public int X { get; set; }
         public int Y { get; set; }
