@@ -63,7 +63,7 @@ namespace ImageGetter.Controllers
             if(viewId is not null)
             {
                 //Check if we have a cached filename for this viewId
-                if (_viewedImages.TryGetValue(viewId.Value, out filename)) ;
+                if (_viewedImages.TryGetValue(viewId.Value, out filename))
                 {
                     _logger.LogInformation($"Using ViewId {viewId} pointing to {filename}");
                 }
@@ -90,10 +90,12 @@ namespace ImageGetter.Controllers
             if(image == null)
                 return NotFound(filename);
 
-            if (viewId is not null && filename is null)
+            //Do we need to cache the filename for future requests
+            if (_viewedImages.TryGetValue(viewId.Value, out _) == false)
             {
-                //Cache the filename for the viewId for future requests
                 _viewedImages.Add(viewId.Value, image.Filename);
+
+                _logger.LogInformation($"Associating ViewId {viewId} with {filename}");
             }
 
             MemoryStream ms = new();
