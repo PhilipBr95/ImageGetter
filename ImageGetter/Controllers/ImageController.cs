@@ -23,12 +23,20 @@ namespace ImageGetter.Controllers
         [HttpHead]
         public IActionResult Head()
         {
+            _logger.LogWarning("HEAD!!!");
+
             Response.Headers.LastModified = DateTimeOffset.Now.ToString("ddd, d MMM yyyy HH:mm:ss");
             return Ok();
         }
 
         [HttpHead("/image/{width:int}/{height:int}")]
         public IActionResult Head(int width, int height)
+        {
+            return Head();
+        }
+
+        [HttpHead("/image/{width:int}/{height:int}/{viewid}/{filename}")]
+        public IActionResult Head(int width, int height, int viewid, string filename)
         {
             return Head();
         }
