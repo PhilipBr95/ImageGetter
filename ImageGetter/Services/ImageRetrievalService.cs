@@ -91,7 +91,8 @@ namespace ImageGetter.Services
             DateTime createdDate = DateTime.MinValue;
             string location = "";
             ushort orientation = 0;
-            int mediaId = _media?.FirstOrDefault(m => m.Filename == path)?.MediaId ?? -1;
+
+            _imageRepository.TryGetMedia(path, out MediaMeta mediaMeta);
 
             var exifProfile = image.Metadata.ExifProfile;
             if (exifProfile != null)
@@ -107,33 +108,40 @@ namespace ImageGetter.Services
                             createdDate = parsedDate;
                     }
                 }
-
-                orientation = image.Metadata.GetOrientation() ?? 0;
-
-                if (_imageRepository.TryGetMedia(path, out MediaMeta mediaMeta))
+                
+                if (mediaMeta != null)
                 {                    
                     location = mediaMeta?.Location?.Address;
                     _logger.LogInformation($"Using cached location: {location}");
                 }
                 else if (Path.GetExtension(path) == ".jpg")
-                        location = image.Metadata.GetLocationStringAsync().GetAwaiter().GetResult() ?? "";
+                    location = image.Metadata.GetLocationStringAsync().GetAwaiter().GetResult() ?? "";
             }
             else
             {
                 _logger.LogWarning($"No EXIF data found for {path}");
             }
 
-            _imageRepository.AddMedia(new MediaMeta
+            int mediaId = _media?.FirstOrDefault(m => m.Filename == path)?.MediaId ?? -1;
+
+            if (mediaMeta == null)
             {
-                Filename = path,
-                Location = new Location
+                _logger.LogInformation($"Adding media metadata for {path} to repository");
+
+                _imageRepository.AddMedia(new MediaMeta
                 {
-                    Address = location,
-                    Latitude = image.Metadata?.GetExifLatitude(),
-                    Longitude = image.Metadata?.GetExifLongitude()
-                },
-                MediaId = mediaId       //Mainly for current logging purposes
-            });
+                    Filename = path,
+                    Location = new Location
+                    {
+                        Address = location,
+                        Latitude = image.Metadata?.GetExifLatitude(),
+                        Longitude = image.Metadata?.GetExifLongitude()
+                    },
+                    MediaId = mediaId       //Mainly for current logging purposes
+                });
+            }
+
+            orientation = image.Metadata?.GetOrientation() ?? 0;
 
             return new MediaFile
             {

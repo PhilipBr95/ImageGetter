@@ -65,7 +65,7 @@ namespace ImageGetter.Controllers
                 //Check if we have a cached filename for this viewId
                 if (_viewedImages.TryGetValue(viewId.Value, out filename))
                 {
-                    _logger.LogInformation($"Using ViewId {viewId} pointing to {filename}");
+                    _logger.LogInformation($"Using ViewId {viewId} which is pointing to {filename}");
                 }
             }
 
