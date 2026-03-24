@@ -55,13 +55,48 @@ namespace ImageGetter.Repositories
 
             _logger.LogInformation($"Removed {db?.Count - fixedDb?.Count} duplicate entries from database [{db?.Count} vs {fixedDb?.Count}]");
 
+            if (_settings.HomeLocation is not null)
+                FixHomeLocationNearMisses(fixedDb);
+
             //Fix display counts to be the total views across all duplicates
             fixedDb.ForEach(m => m.DisplayCount = totalViews?.FirstOrDefault(t => t.Filename == m.Filename)?.DisplayCount ?? m.DisplayCount);
 
             _logger.LogInformation($"Loaded {fixedDb?.Count ?? 0} media entries from database");
             _logger.LogInformation($"Most Popular: {fixedDb?.Max(o => o.DisplayCount)} views");
+            _logger.LogInformation($"Images with Cached Objects: {fixedDb?.Count(w => w.Objects.DetectionVersion > 0)}");
 
             return fixedDb;
+        }
+
+        /// <summary>
+        /// Fix any near misses related to the home location by checking if the distance is within the HomeLocationProximity threshold 
+        /// </summary>
+        /// <param name="fixedDb"></param>
+        private void FixHomeLocationNearMisses(List<MediaMeta>? fixedDb)
+        {
+            var nearMissCount = 0;
+
+            //Fix any near misses related to the home location
+            fixedDb?.ForEach(m =>
+            {
+                if (m.Location is not null)
+                {
+                    if (m.Location.Address != _settings.HomeLocation.Address)
+                    {
+                        var distance = m.Location.DistanceTo(_settings.HomeLocation);
+                        if (distance > 0 && distance < _settings.HomeLocationProximity)
+                        {
+                            _logger.LogInformation($"Updating location for {m.MediaId} from {m.Location.Address} to [HOME] due to proximity {distance:F4}km");
+                            m.Location.Address = _settings.HomeLocation.Address;
+                            m.Location.AddressAltered = true;
+
+                            nearMissCount++;
+                        }
+                    }
+                }
+            });
+
+            _logger.LogInformation($"Fixed {nearMissCount} near misses related to home location");
         }
 
         public bool TryGetMedia(string filename, out MediaMeta mediaMeta)

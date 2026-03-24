@@ -17,5 +17,7 @@
         public int MaxCachedSaves { get; set; } = 5;
         public int BackupEvery { get; set; } = 30;
         public bool DebugMode { get; set; } = true;
+        public Location? HomeLocation { get; set; }
+        public double HomeLocationProximity { get; set; } = 0.05;       //50m
     }
 }

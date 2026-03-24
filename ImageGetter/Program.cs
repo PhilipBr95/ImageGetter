@@ -2,6 +2,7 @@
 using ImageGetter.Models;
 using ImageGetter.Repositories;
 using ImageGetter.Services;
+using Microsoft.Extensions.Logging.Console;
 
 namespace ImageGetter
 {
@@ -45,6 +46,7 @@ namespace ImageGetter
                 options.ClearProviders();
                 options.AddSimpleConsole(consoleOptions =>
                 {
+                    consoleOptions.ColorBehavior = LoggerColorBehavior.Enabled;
                     consoleOptions.TimestampFormat = "HH:mm:ss ";
                         consoleOptions.SingleLine = true;
                 });
@@ -64,6 +66,10 @@ namespace ImageGetter
                     throw new Exception("IMAGEGETTER_PASSWORD environment variable not set");
 
                 settings.GoogleApiKey = Environment.GetEnvironmentVariable("GOOGLE_APIKEY");
+
+                var homeLocation = Environment.GetEnvironmentVariable("HOME_LOCATION");
+                if(homeLocation is not null)
+                    settings.HomeLocation = Location.Parse(homeLocation);
             });
 
             var serviceProvider = builder.Services.BuildServiceProvider();
