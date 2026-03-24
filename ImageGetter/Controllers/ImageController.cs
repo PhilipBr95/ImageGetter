@@ -95,7 +95,7 @@ namespace ImageGetter.Controllers
             {
                 _viewedImages.Add(viewId.Value, image.Filename);
 
-                _logger.LogInformation($"Associating ViewId {viewId} with {filename}");
+                _logger.LogInformation($"Associating ViewId {viewId} with {image.Filename}");
             }
 
             MemoryStream ms = new();
