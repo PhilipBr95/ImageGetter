@@ -398,7 +398,7 @@ namespace ImageGetter.Services
                     }
                     else
                     {
-                        _logger.LogDebug($"None of the faces look good :-(... Max Confidence: {faces?.Max(m => m.Confidence)}");
+                        _logger.LogDebug($"None of the faces look good :-(");
 
                         //If we don't do anything then only the top part of the image is displayed..
                         //Resize to show the full image
