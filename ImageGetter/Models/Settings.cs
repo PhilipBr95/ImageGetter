@@ -2,7 +2,7 @@
 {
     public class Settings
     {
-        public string Host { get; set; } = "egypt.local";
+        public string Host { get; set; } = "egypt";
         public string? ImagePassword { get; set; }
         public string Username { get; set; } = "ImageGetter";
         public IEnumerable<string> Paths { get; set; } = ["/photo/Phil's Phone", "/photo/Gill's Phone", "/photo/Gill's Selective Phone", "/photo/Camera Selective Photos"];
