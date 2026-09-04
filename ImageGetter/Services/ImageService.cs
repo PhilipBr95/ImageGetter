@@ -46,9 +46,16 @@ namespace ImageGetter.Services
             try
             {
                 var newImage = await RetrieveImageAsync(null, width, height, debug);
-                _memoryCache.Set<ImageWithMeta>("CachedRandomImage", newImage, TimeSpan.FromDays(1));
 
-                _logger.LogInformation($"Cached an image: {newImage.Filename}");
+                if(newImage != null)
+                {
+                    _memoryCache.Set<ImageWithMeta>("CachedRandomImage", newImage, TimeSpan.FromDays(1));
+                    _logger.LogInformation($"Cached an image: {newImage.Filename}");
+                }
+                else
+                {
+                    _logger.LogWarning("Failed to cache image - no image retrieved");
+                }
             }
             catch (Exception ex)
             {

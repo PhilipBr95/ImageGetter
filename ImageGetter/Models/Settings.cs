@@ -2,7 +2,7 @@
 {
     public class Settings
     {
-        public string Host { get; set; } = "egypt";
+        public string Host { get; set; } = "egypt.local";
         public string? ImagePassword { get; set; }
         public string Username { get; set; } = "ImageGetter";
         public IEnumerable<string> Paths { get; set; } = ["/photo/Phil's Phone", "/photo/Gill's Phone", "/photo/Gill's Selective Phone", "/photo/Camera Selective Photos"];
@@ -14,7 +14,6 @@
         public float ImageRatioTolerance { get; set; } = 0.3f;
         public double MinAvgConfidence { get; set; } = 80000;
         public string DatabasePath { get; set; } = "./DB/Images.json";
-        public int MaxCachedSaves { get; set; } = 5;
         public int BackupEvery { get; set; } = 30;
         public bool DebugMode { get; set; } = true;
         public Location? HomeLocation { get; set; }

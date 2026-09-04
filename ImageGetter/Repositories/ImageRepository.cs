@@ -1,5 +1,6 @@
 ﻿using ImageGetter.Models;
 using Microsoft.Extensions.Options;
+using System.Globalization;
 using System.Runtime;
 using System.Text.Json;
 
@@ -10,18 +11,13 @@ namespace ImageGetter.Repositories
         private readonly Settings _settings;
         private readonly ILogger<IImageRepository> _logger;
         private List<MediaMeta> _db;
-        
-        private int _pendingSaveCount = 0;
-        private int _pendingBackupCount = 0;
+        private int _ImageSaveCount = 0;
 
         public ImageRepository(IOptions<Settings> settings, ILogger<IImageRepository> logger) 
         {
             _settings = settings.Value;
             _logger = logger;
-
-            //Force a quick save to help with debugging
-            _pendingSaveCount = _settings.MaxCachedSaves - 1;
-
+            
             _db = LazyInitializer.EnsureInitialized(ref _db, () => LoadDatabase());
         }
 
@@ -36,7 +32,7 @@ namespace ImageGetter.Repositories
                 _logger.LogWarning($"Image database file not found, creating new database {_settings.DatabasePath}");
 
                 _db = [];
-                SaveDatabase(true);
+                BackupDatabaseIfRequired();
 
                 return _db;
             }
@@ -59,6 +55,7 @@ namespace ImageGetter.Repositories
                 FixHomeLocationNearMisses(fixedDb);
 
             //Fix display counts to be the total views across all duplicates
+            
             fixedDb.ForEach(m => m.DisplayCount = totalViews?.FirstOrDefault(t => t.Filename == m.Filename)?.DisplayCount ?? m.DisplayCount);
 
             _logger.LogInformation($"Loaded {fixedDb?.Count ?? 0} media entries from database");
@@ -128,42 +125,60 @@ namespace ImageGetter.Repositories
             mediaMeta.DisplayCount++;
             mediaMeta.LastViewedDate = DateTime.UtcNow;
 
-            SaveDatabase();
+            BackupDatabaseIfRequired();
         }
 
-        private void SaveDatabase(bool forceSave = false)
+        private void BackupDatabaseIfRequired(bool forced = false)
         {
-            _pendingSaveCount++;
-            _pendingBackupCount++;
+            var backupRequired = _ImageSaveCount > _settings.BackupEvery;
+            _ImageSaveCount++;
 
-            if (_settings.DebugMode || forceSave || _pendingSaveCount >= _settings.MaxCachedSaves)
+            if (_settings.DebugMode || backupRequired || forced)
             {
+                _ImageSaveCount = 0;
+
                 _logger.LogInformation($"Saving image database({_db.Count} images) to disk");
                                 
                 var json = JsonSerializer.Serialize(_db, new JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(_settings.DatabasePath, json);
 
-                _pendingSaveCount = 0;
-
-                //Do we need to create a backup
-                if (_pendingBackupCount >= _settings.BackupEvery)
+                //Do we need a backup
+                if (IsBackupRequired())
                 {
-                    var backupPath = Path.Combine(Path.GetDirectoryName(_settings.DatabasePath), "Backup");
-                    Directory.CreateDirectory(backupPath);
-
-                    backupPath = Path.Combine(backupPath, $"Images.{DateTime.UtcNow:yyyyMMddHHmmss}.bak");                    
-                    File.WriteAllText(backupPath, json);
+                    string backupPath = GetTodaysBackupFile();
 
                     _logger.LogInformation($"Saving image backup to {backupPath}");
-                    _pendingBackupCount = 0;
+                    File.WriteAllText(backupPath, json);
                 }
             }
+        }
+
+        private string GetTodaysBackupFile()
+        {
+            var backupPath = Path.Combine(Path.GetDirectoryName(_settings.DatabasePath), "Backup");
+            Directory.CreateDirectory(backupPath);
+
+            backupPath = Path.Combine(backupPath, $"Images.{GetWeekNumber()}.bak");
+            return backupPath;
+        }
+
+        public static int GetWeekNumber()
+        {
+            CultureInfo ciCurr = CultureInfo.CurrentCulture;
+            int weekNum = ciCurr.Calendar.GetWeekOfYear(DateTime.Now, CalendarWeekRule.FirstFourDayWeek, DayOfWeek.Monday);
+            return weekNum;
+        }
+
+        private bool IsBackupRequired()
+        {
+            var file = GetTodaysBackupFile();
+            return !File.Exists(file);
         }
 
         public void Dispose()
         {
             if(_db is not null)
-                SaveDatabase(true);
+                BackupDatabaseIfRequired(true);
 
             GC.SuppressFinalize(this);
         }
